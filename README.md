@@ -7,3 +7,5 @@ High Level Overview Diagram:
 # Cisco Collectors
 The collectors monitor various Cisco IOS XR devices via netconf-yang, model driven telemetry, snmp, Grpc, etc.  Given they yang model path, the collectors will export the metrics they collect to opensource TSDB such as InfluxDB, ElasticSearch, Prometheus.  
 
+# Timelines
+![Diagram](https://github.com/GregoryBrown/Cisco-Realtime-Network-Monitoring/blob/master/High%20Level%20Timeline.png)
