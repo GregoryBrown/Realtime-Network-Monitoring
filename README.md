@@ -18,6 +18,6 @@ This tool will give the network engineer a one stop shop for launching the Cisco
 # Release Notes:
 
 # TODO
-Finish uploading existing code
-Code complete of ODL collector, and MDT collector
-Testing of ODL and MDT collector. 
+* Finish uploading existing code
+* Code complete of ODL collector, and MDT collector
+* Testing of ODL and MDT collector. 
