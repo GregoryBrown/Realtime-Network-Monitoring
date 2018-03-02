@@ -13,7 +13,7 @@ The collectors will take in a Yang path, poll via gRPC, Netconf-Yang, Dial-In MD
 This tool will give the network engineer a one stop shop for launching the Cisco collectors, monitoring alerts, monitoring automation runs, and managing infrastructure configurations.  This will integrate with Cisco existing automation suites and be able to proactively trigger jobs to resolve on device issues based on what is failing.  The tool will be able to execute autoamtion jobs based on configurations, traffic profiles, other scripts running on box, and general stress on the box.
 
 # Timelines
-![Diagram](https://github.com/GregoryBrown/Cisco-Realtime-Network-Monitoring/blob/master/High%20Level%20Timeline.png)
+![Diagram](https://github.com/GregoryBrown/Cisco-Realtime-Network-Monitoring/blob/master/high-level-timeline.png)
 
 # Release Notes:
 
