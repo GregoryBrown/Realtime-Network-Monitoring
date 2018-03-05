@@ -61,6 +61,10 @@ def make_line_format(measurement, tags, fields):
     return rc_str.strip(',')
 
 
+def format_mdt_output(output):
+    print(output)
+
+
 
 
 
