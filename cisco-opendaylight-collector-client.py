@@ -16,8 +16,8 @@ import requests
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("-t", "--t", dest="db_server", help="InfluxDB server name", required=True)
-    parser.add_argument("-r", "--r", dest="db_port", help="InfluxDB server port", required=True)
+    parser.add_argument("-t", "--database_server", dest="db_server", help="InfluxDB server name", required=True)
+    parser.add_argument("-r", "--database_port", dest="db_port", help="InfluxDB server port", required=True)
     parser.add_argument("-d", "--database", dest="database", help="InfluxDB Database to use", required=True)
     parser.add_argument("-n", "--name", dest="device", help="Device name in ODL", required=True)
     parser.add_argument("-s", "--server", dest="server", help="ODL Server", required=True)
