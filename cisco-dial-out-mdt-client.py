@@ -25,17 +25,6 @@ class SelectorServer(object):
         self.selector.unregister(conn)
         conn.close()
 
-    def process_output(self, output):
-        dat = output.split('[{')
-        jsondata = []
-        for data in range(0, len(dat)):
-            if 'collection_end_time' in dat[data]:
-                dat1 = str(dat[data]).split('}}]')
-                for i in range(0, len(dat1)):
-                    if 'collection_end_time' not in dat1[i]:
-                        jsondata.append({"data_json": json.loads("[{" + (dat1[i]) + "}}]")})
-        alldata = [{'nodes': {'node': []}}]
-
     def on_read(self, conn, mask):
         still_data = True
         output = ''
@@ -48,10 +37,9 @@ class SelectorServer(object):
                 data = data[:-1]
                 if data:
                     output = output + data
-                    if '"collection_end_time":' in data:
-                        if not '"collection_end_time":0' in data:
-                            self.logger.info("Got all info from {}".format(peer_name))
-                            still_data = False
+                    if '"collection_end_time":' in data and not '"collection_end_time":0' in data:
+                        self.logger.info(f"Got all info from {peer_name}")
+                        still_data = False
                 else:
                     still_data = False
         except ConnectionResetError:
