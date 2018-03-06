@@ -1,20 +1,31 @@
 import logging
 import socket
 import selectors
+import sys
+import json
+from pprint import pprint
+from multiprocessing import Pool
+from struct import unpack
 from argparse import ArgumentParser
 from databases import InfluxDBUploader
 from utils import format_mdt_output
 
 class SelectorServer(object):
-    def __init__(self, host, port, logger, database):
+    def __init__(self, host, port, logger, func, database):
         self.main_socket = socket.socket()
+        self.main_socket.setblocking(False)
+        self.main_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.main_socket.bind((host, port))
-        self.main_socket.listen(100)
+        self.main_socket.listen(10)
         self.logger = logger
         self.selector = selectors.DefaultSelector()
         self.selector.register(fileobj=self.main_socket, events=selectors.EVENT_READ, data=self.on_accept)
-        self.database = database
-
+        self.endianness = sys.byteorder
+        self.process_function = func
+        self.database_conn = database
+        self.header_size = 12
+        self.pool = Pool(10)
+        
     def on_accept(self, sock, mask):
         conn, address = self.main_socket.accept()
         self.logger.info(f'Accepted connection from {address}')
@@ -24,38 +35,20 @@ class SelectorServer(object):
         self.logger.info(f"Closing connection to {conn}")
         self.selector.unregister(conn)
         conn.close()
-
+        
     def on_read(self, conn, mask):
-        still_data = True
-        output = ''
-        try:
-            peer_name = conn.getpeername()
-            while still_data:
-                data = conn.recv(256000)
-                data = data.decode('latin-1').encode("utf-8")
-                data = str(data)[2:]
-                data = data[:-1]
-                if data:
-                    output = output + data
-                    if '"collection_end_time":' in data and not '"collection_end_time":0' in data:
-                        self.logger.info(f"Got all info from {peer_name}")
-                        still_data = False
-                else:
-                    still_data = False
-        except ConnectionResetError:
-            self.close_connection(conn)
-        finally:
-            try:
-                data = format_mdt_output(output)
-                upload_result = self.database.upload_to_db(data)
-                if not upload_result[0]:
-                    self.logger.error("Error while posting data to database")
-                    self.logger.error(upload_result)
-                    exit(1)
-            except Exception as e:
-                self.logger.error(e)
-                self.close_connection(conn)
-                exit(1)
+        peer_name = conn.getpeername() 
+        header_data = conn.recv(self.header_size)
+        while header_data:
+            msg_type, encode_type, msg_version, flags, msg_length = unpack('>hhhhi',header_data)
+            self.logger.info(f"Got MDT data ({msg_length} bytes) from {peer_name}")
+            msg_data = b''
+            while len(msg_data) < msg_length:
+                packet = conn.recv(msg_length - len(msg_data))
+                msg_data += packet
+            self.pool.apply_async(self.process_function, (msg_data, self.database_conn, ))
+            header_data = conn.recv(self.header_size)
+
 
     def collect(self):
         while True:
@@ -65,6 +58,12 @@ class SelectorServer(object):
                 handler(key.fileobj, mask)
 
 
+
+def process_output_and_upload(data, database):
+    json_data = json.loads(data.decode("utf-8"))
+    print(json_data)
+    
+    
 def main():
     parser = ArgumentParser()
     parser.add_argument("-a", "--address", dest="address", help="Server ip address to bind to", required=True)
@@ -85,7 +84,7 @@ def main():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     influxdb = InfluxDBUploader(args.db_server, int(args.db_port), args.database)
-    server = SelectorServer(args.address, int(args.port), logger, influxdb)
+    server = SelectorServer(args.address, int(args.port), logger, process_output_and_upload, influxdb)
     server.collect()
 
 
