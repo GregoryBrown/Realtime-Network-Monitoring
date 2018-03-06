@@ -3,12 +3,11 @@ import socket
 import selectors
 import sys
 import json
-from pprint import pprint
 from multiprocessing import Pool
 from struct import unpack
 from argparse import ArgumentParser
 from databases import InfluxDBUploader
-from utils import format_mdt_output
+
 
 class SelectorServer(object):
     def __init__(self, host, port, logger, func, database):
@@ -20,7 +19,6 @@ class SelectorServer(object):
         self.logger = logger
         self.selector = selectors.DefaultSelector()
         self.selector.register(fileobj=self.main_socket, events=selectors.EVENT_READ, data=self.on_accept)
-        self.endianness = sys.byteorder
         self.process_function = func
         self.database_conn = database
         self.header_size = 12
@@ -49,14 +47,12 @@ class SelectorServer(object):
             self.pool.apply_async(self.process_function, (msg_data, self.database_conn, ))
             header_data = conn.recv(self.header_size)
 
-
     def collect(self):
         while True:
             events = self.selector.select()
             for key, mask in events:
                 handler = key.data
                 handler(key.fileobj, mask)
-
 
 
 def process_output_and_upload(data, database):
@@ -83,8 +79,8 @@ def main():
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    influxdb = InfluxDBUploader(args.db_server, int(args.db_port), args.database)
-    server = SelectorServer(args.address, int(args.port), logger, process_output_and_upload, influxdb)
+    influx_db_uploader = InfluxDBUploader(args.db_server, int(args.db_port), args.database)
+    server = SelectorServer(args.address, int(args.port), logger, process_output_and_upload, influx_db_uploader)
     server.collect()
 
 
