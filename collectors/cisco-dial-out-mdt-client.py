@@ -7,7 +7,7 @@ from copy import deepcopy
 from multiprocessing import Pool
 from struct import unpack
 from argparse import ArgumentParser
-from databases import InfluxDBUploader
+from ..databases.databases import InfluxDBUploader
 
 
 class SelectorServer(object):
