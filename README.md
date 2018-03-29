@@ -2,7 +2,7 @@
 The goal of the application is to be a unified collection system of all the different technologies that are able to monitor Cisco IOS XR devices.  The application will export the desired metrics into a TSDB, to be queried and displayed.  Cisco Realtime AI will be able to listen for alerts from open source alerting products via web hooks, and make intelligent decisions based on the alerts to launch the appropriate automation suite. 
 
 High Level Overview Diagram:
-![Diagram](https://github.com/GregoryBrown/Cisco-Network-Collectors/blob/master/high-level-overview.png)
+![Diagram](https://github.com/GregoryBrown/Cisco-Network-Collectors/blob/master/docs/high-level-overview.png)
 
 # Cisco Collectors
 The collectors monitor various Cisco IOS XR devices via Netconf-Yang, MDT (Model Driven Telemetry), SNMP, gRPC, etc.  Given they Yang model path, the collectors will export the metrics they collect to open source TSDB such as InfluxDB, ElasticSearch, Prometheus.  
