@@ -27,7 +27,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                 encoding = {1:'gpb', 2:'json'}[encode_type]
                 msg_data = b''
                 if encode_type == 1:
-                    print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
+                    #print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
                     while len(msg_data) < msg_length:
                         packet = yield stream.read_bytes(msg_length - len(msg_data))
                         msg_data += packet
@@ -35,7 +35,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                     #gpb_data.ParseFromString(msg_data)
                     #print(gpb_data)
                 else:
-                    print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
+                    #print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
                     while len(msg_data) < msg_length:
                         packet = yield stream.read_bytes(msg_length - len(msg_data))
                         msg_data += packet
@@ -54,9 +54,14 @@ def main():
     config_parser = ConfigParser()
     config_parser.read(args.config)
     tcp_server = TelemetryTCPDialOutServer()
-    tcp_server.bind(5557)
-    tcp_server.bind(5556)
-    tcp_server.bind(5555)
+    for section in config_parser.sections():
+        for port in json.loads(config_parser.get(section,"Ports")):
+            if section == 'TCP':
+                tcp_server.bind(port)
+            elif section == 'GRPC':
+                pass
+            else:
+                pass
     tcp_server.start(0)
     IOLoop.current().start()
 
