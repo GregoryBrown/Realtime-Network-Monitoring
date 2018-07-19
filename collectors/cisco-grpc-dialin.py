@@ -11,7 +11,7 @@ import grpc
 import json
 import logging
 from collections import defaultdict
-
+from grpc import ChannelConnectivity
 
 
 
@@ -21,10 +21,13 @@ class DialInClient(object):
         self._host = host
         self._port = port
         self._timeout = float(timeout)
+        self._channel = None
+        self._cisco_ems_stub = None
+        self._connected = False
         self._metadata = [('username', user), ('password', password)]
-        self._channel = grpc.insecure_channel(':'.join([self._host,self._port]))
-        self._cisco_ems_stub = gRPCConfigOperStub(self._channel)
-        
+        if self._host and self._port:
+            self.connect()
+            
     def subscribe(self, sub_id):
         sub_args = CreateSubsArgs(ReqId=1, encode=3, subidstr=sub_id)
         stream = self._cisco_ems_stub.CreateSubs(sub_args, timeout=self._timeout, metadata=self._metadata)
@@ -33,7 +36,37 @@ class DialInClient(object):
             telemetry_pb.ParseFromString(segment.data)
             yield json_format.MessageToJson(telemetry_pb)
 
+        
+    def connect(self):
+        self._channel = grpc.insecure_channel(':'.join([self._host,self._port]))
+        try:
+            grpc.channel_ready_future(self._channel).result(timeout=10)
+            self._connected = True
+        except grpc.FutureTimeoutError:
+            print('Error connecting to server')
+            exit(1)
+        else:
+            self._cisco_ems_stub = gRPCConfigOperStub(self._channel)
 
+    def isconnected(self):
+        return self._connected
+        
+class TLSDialInClient(DialInClient):
+    def __init__(self, host, port, pem, timeout=10000000, user='root', password='lablab'):
+        self._pem = pem
+        super().__init__(host, port, timeout, user, password)
+    def connect(self):
+        creds = grpc.ssl_channel_credentials(open(self._pem, "rb").read())
+        opts = (('grpc.ssl_target_name_override', 'ems.cisco.com',),)
+        self._channel = grpc.secure_channel(':'.join([self._host,self._port]), creds, opts)
+        try:
+            grpc.channel_ready_future(self._channel).result(timeout=10)
+            self._connected = True
+        except grpc.FutureTimeoutError:
+            print('Error connecting to server')
+            exit(1)
+        else:
+            self._cisco_ems_stub = gRPCConfigOperStub(self._channel)
     
 def format_output(telemetry_jsonformat):
     telemetry_json = json.loads(telemetry_jsonformat)
@@ -42,6 +75,7 @@ def format_output(telemetry_jsonformat):
             output = _format_fields(data["fields"])
             output["encode_path"] = telemetry_json["encodingPath"]
             output["node"] = telemetry_json["nodeIdStr"]
+            output['timestamp'] = data["timestamp"]
             yield json.dumps(output)
 
 def _format_fields(data):
@@ -80,7 +114,6 @@ def elasticsearch_upload(data, args, lock, sensor_list):
                         print(index_put_response.json())
                     sensor_list.append(sensor)
         data_url = f"{index_url}/nodes"
-        output["timestamp"] = int(round((time() * 1000)))
         output["type"] = device
         data_response = request("POST", data_url, json=output)
         if not data_response.status_code == 201:
@@ -96,9 +129,18 @@ def main():
     parser.add_argument("-p", "--password", dest="password", help="Password", required=True)
     parser.add_argument("-a", "--host", dest="host", help="host", required=True)
     parser.add_argument("-r", "--port", dest="port", help="port", required=True)
-    parser.add_argument("-e", "--elastic", dest="elastic_server", help="elastic server", required=True)
-    args = parser.parse_args() 
-    client = DialInClient(args.host, args.port, user=args.username, password=args.password)
+    parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server", required=True)
+    parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", required=False, action='store_true')
+    parser.add_argument("-m", "--pem", dest="pem", help="pem file", required=False)
+    args = parser.parse_args()
+    if args.tls:
+        if args.pem:
+            client = TLSDialInClient(args.host, args.port, args.pem, user=args.username, password=args.password)
+        else:
+            print("Need pem file when using tls")
+            exit(0)
+    else:
+        client = DialInClient(args.host, args.port, user=args.username, password=args.password)
     elastic_lock = Manager().Lock()
     sensor_list = Manager().list()
     get_all_sensors_url = f"http://{args.elastic_server}:9200/*"
