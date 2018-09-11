@@ -4,6 +4,7 @@ from google.protobuf import json_format
 from telemetry_pb2 import Telemetry
 from gnmi_pb2_grpc import gNMIStub
 from gnmi_pb2 import Subscription, SubscriptionMode, Path, SubscriptionList, Encoding, PathElem, SubscribeRequest, CapabilityRequest
+from argparse import ArgumentParser
 import grpc
 
 
@@ -19,7 +20,7 @@ class DialInClient(object):
         
     def subscribe(self, sub_id, unmarshal=True):
         sub_args = CreateSubsArgs(ReqId=1, encode=3, subidstr=sub_id)
-        stream = self._stub.CreateSubs(sub_args, timeout=self._timeout, metadata=self._metadata)
+        stream = self._cisco_ems_stub.CreateSubs(sub_args, timeout=self._timeout, metadata=self._metadata)
         for segment in stream:
             if not unmarshal:
                 yield segment
@@ -49,10 +50,16 @@ class DialInClient(object):
 
 
 def main():
-    client = DialInClient('10.8.44.3', '57400')
-    print(client.getgnmicapability())
-    #for json_response in client.subscribe_to_path("Cisco-IOS-XR-ip-tcp-oper:tcp-nsr"):
-    #    print(json_response)
+    parser = ArgumentParser()
+    parser.add_argument("-s", "--subscription", dest="sub", help="Subscription name", required=True)
+    parser.add_argument("-u", "--username", dest="username", help="Username", required=True)
+    parser.add_argument("-p", "--password", dest="password", help="Password", required=True)
+    parser.add_argument("-a", "--host", dest="host", help="host", required=True)
+    parser.add_argument("-r", "--port", dest="port", help="port", required=True)
+    args = parser.parse_args() 
+    client = DialInClient(args.host, args.port, user=args.username, password=args.password)
+    for json_response in client.subscribe(args.sub):
+        print(json_response)
 
 if __name__ == '__main__':
     main()

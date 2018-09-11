@@ -32,10 +32,10 @@ class DialInClient(object):
         sub_args = CreateSubsArgs(ReqId=1, encode=3, subidstr=sub_id)
         stream = self._cisco_ems_stub.CreateSubs(sub_args, timeout=self._timeout, metadata=self._metadata)
         for segment in stream:
-            telemetry_pb = Telemetry()
-            telemetry_pb.ParseFromString(segment.data)
-            yield json_format.MessageToJson(telemetry_pb)
-
+            #telemetry_pb = Telemetry()
+            #telemetry_pb.ParseFromString(segment.data)
+            #yield json_format.MessageToJson(telemetry_pb)
+            yield segment 
         
     def connect(self):
         self._channel = grpc.insecure_channel(':'.join([self._host,self._port]))
@@ -88,39 +88,66 @@ def _format_fields(data):
             for key, value in item.items():
                 if 'Value' in key:
                     rc_value = value
-                data_dict[item["name"]] = rc_value
+                    data_dict[item["name"]] = rc_value
     return data_dict
 
 
-def elasticsearch_upload(data, args, lock, sensor_list):
-    #Create index (indexes are sensor names
-    for output in format_output(data):
-        output = json.loads(output)
-        sensor = output.pop("encode_path").replace('/','-').lower()
-        device = output['node'].replace('/','-').lower()
-        index_url = f"http://{args.elastic_server}:9200/{sensor}"
-        headers = {'Content-Type': "application/json"}
-        if not sensor in sensor_list:
+
+def elasticsearch_upload(segments, args, lock, index_list):
+    decode_segments = []
+    converted_decode_segments = []
+    sorted_by_index = {}
+    #Decode all segments
+    for segment in segments:
+        telemetry_pb = Telemetry()                                                                                                                                                                     
+        telemetry_pb.ParseFromString(segment.data)                                                                                                                               
+        decode_segments.append(json_format.MessageToJson(telemetry_pb))
+    #Convert decode segments into elasticsearch messages, and save to list for upload 
+    for decode_segment in decode_segments:
+        for output in format_output(decode_segment):
+            converted_decode_segments.append(json.loads(output))
+    #Sort all segments by index
+    for converted_decode_segment in converted_decode_segments:
+        if not converted_decode_segment["encode_path"] in sorted_by_index.keys():
+            sorted_by_index[converted_decode_segment["encode_path"]] = [converted_decode_segment]
+        else:
+            sorted_by_index[converted_decode_segment["encode_path"]].append(converted_decode_segment)
+    #Bulk upload each index to elasticsearch
+    for key in sorted_by_index.keys():
+        index = key.replace('/','-').lower()
+        index_url = f"http://{args.elastic_server}:9200/{index}"
+        if not index in index_list:
             with lock:
-                if not sensor in sensor_list:
+                if not index in index_list:
                     print('Acciqured lock to put index in elasticsearch')
+                    headers = {'Content-Type': "application/json"}
                     mapping = {"settings": {"index.mapping.total_fields.limit": 2000},"mappings": {"nodes": {
-                        "properties": {"type": {"type": "keyword"},"keys": {"type": "object"},
-                                       "content": {"type": "object"},"timestamp": {"type": "date"}}}}}
+                        "properties": {"type": {"type": "keyword"},"keys": {"type": "object"},"content": {"type": "object"},"timestamp": {"type": "date"}}}}}
                     index_put_response = request("PUT", index_url, headers=headers, json=mapping)
                     if not index_put_response.status_code == 200:
                         print("Error when creating index")
                         print(index_put_response.status_code)
                         print(index_put_response.json())
-                    sensor_list.append(sensor)
-        data_url = f"{index_url}/nodes"
-        output["type"] = device
-        data_response = request("POST", data_url, json=output)
-        if not data_response.status_code == 201:
-            print(data_response.status_code)
-            print(data_response.json())
-            print(output)
-            
+                        exit(0)
+                    index_list.append(index)
+        data_url = f"http://{args.elastic_server}:9200/_bulk"
+        segment_list = sorted_by_index[key]
+        elastic_index = {'index': {'_index': f'{index}', '_type': 'nodes'}}
+        payload_list = []
+        payload_list.append(elastic_index)
+        for segment in segment_list:
+            payload_list.append(segment)
+            payload_list.append(elastic_index)
+        payload_list.pop()
+        data_to_post = '\n'.join(json.dumps(d) for d in payload_list)
+        data_to_post += '\n'
+        headers = {'Content-Type': "application/x-ndjson"}
+        reply = request("POST", data_url, data=data_to_post, headers=headers)
+        if reply.json()['errors']:
+            print("Error while uploading in bulk")
+            exit(0)
+
+
 
 def main():
     parser = ArgumentParser()
@@ -129,6 +156,7 @@ def main():
     parser.add_argument("-p", "--password", dest="password", help="Password", required=True)
     parser.add_argument("-a", "--host", dest="host", help="host", required=True)
     parser.add_argument("-r", "--port", dest="port", help="port", required=True)
+    parser.add_argument("-b", "--batch_size", dest="batch_size", help="Batch size", required=True)
     parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server", required=True)
     parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", required=False, action='store_true')
     parser.add_argument("-m", "--pem", dest="pem", help="pem file", required=False)
@@ -152,8 +180,15 @@ def main():
         if not key.startswith('.'):
             sensor_list.append(key)
     with Pool() as pool:
+        batch_list = []
         for response in client.subscribe(args.sub):
-            result = pool.apply_async(elasticsearch_upload, (response, args, elastic_lock, sensor_list, ))
-            #elasticsearch_upload(response, args, elastic_lock, sensor_list)
+            batch_list.append(response)
+            if len(batch_list) >= int(args.batch_size):
+                result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, ))
+                #elasticsearch_upload(batch_list, args, elastic_lock, sensor_list)
+                del batch_list
+                batch_list = []
+        
+        
 if __name__ == '__main__':
     main()
