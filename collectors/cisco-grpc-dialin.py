@@ -1,18 +1,20 @@
-from mdt_grpc_dialin_pb2_grpc import gRPCConfigOperStub
-from mdt_grpc_dialin_pb2 import CreateSubsArgs
+import sys
+sys.path.append("../")
+
+from protos.mdt_grpc_dialin_pb2_grpc import gRPCConfigOperStub
+from protos.mdt_grpc_dialin_pb2 import CreateSubsArgs
 from google.protobuf import json_format
-from telemetry_pb2 import Telemetry
+from protos.telemetry_pb2 import Telemetry
 from collections import defaultdict
 from argparse import ArgumentParser
 from requests import request
 from time import time
 from multiprocessing import Pool, Manager
+from collections import defaultdict
+from grpc import ChannelConnectivity
 import grpc
 import json
 import logging
-from collections import defaultdict
-from grpc import ChannelConnectivity
-
 
 
 
