@@ -1,7 +1,7 @@
-from protos.telemetry_pb2 import Telemetry
+
+from py_protos.telemetry_pb2 import Telemetry
 
 import requests
-
 
 
 class DBUploader(object):
