@@ -1,10 +1,10 @@
 import sys
 sys.path.append("../")
 
-from protos.mdt_grpc_dialin_pb2_grpc import gRPCConfigOperStub
-from protos.mdt_grpc_dialin_pb2 import CreateSubsArgs
+from py_protos.ems_grpc_pb2_grpc import gRPCConfigOperStub
+from py_protos.ems_grpc_pb2_grpc import CreateSubsArgs
 from google.protobuf import json_format
-from protos.telemetry_pb2 import Telemetry
+from py_protos.telemetry_pb2 import Telemetry
 from collections import defaultdict
 from argparse import ArgumentParser
 from requests import request
@@ -15,7 +15,6 @@ from grpc import ChannelConnectivity
 import grpc
 import json
 import logging
-
 
 
 class DialInClient(object):
