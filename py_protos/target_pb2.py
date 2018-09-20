@@ -12,7 +12,7 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-import gnmi_pb2 as gnmi__pb2
+from py_protos import gnmi_pb2 as gnmi__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(

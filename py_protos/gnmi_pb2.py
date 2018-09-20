@@ -15,7 +15,7 @@ _sym_db = _symbol_database.Default()
 
 from google.protobuf import any_pb2 as google_dot_protobuf_dot_any__pb2
 from google.protobuf import descriptor_pb2 as google_dot_protobuf_dot_descriptor__pb2
-import gnmi_ext_pb2 as gnmi__ext__pb2
+from py_protos import gnmi_ext_pb2 as gnmi__ext__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(
