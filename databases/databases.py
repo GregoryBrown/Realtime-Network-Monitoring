@@ -1,6 +1,5 @@
-
 from py_protos.telemetry_pb2 import Telemetry
-
+from multiprocessing import Manager
 import requests
 
 
@@ -33,7 +32,7 @@ class InfluxDBUploader(DBUploader):
 
 
 class ElasticSearchUploader(DBUploader):
-    def __init__(self, db_address='0.0.0.0', db_port=9200, lock=Manager().Lock(),index_list):
+    def __init__(self, index_list, db_address='0.0.0.0', db_port=9200, lock=Manager().Lock()):
         super().__init__(self, db_address, db_port, lock)
         self.index_list = index_list
         self.db_url = f"http://{self.db_address}:{self.db_port}"
