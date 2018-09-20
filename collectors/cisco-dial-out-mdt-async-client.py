@@ -72,6 +72,7 @@ def rest_request(queue):
         finally:
             queue.task_done()
                 
+#main
 def main():
     parser = ArgumentParser()
     parser.add_argument("-c", "--config", dest="config", help="Config file for dial-out telemetry server", required=True)
