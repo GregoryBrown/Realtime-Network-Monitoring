@@ -84,11 +84,18 @@ def main():
     parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", required=False, action='store_true')
     parser.add_argument("-m", "--pem", dest="pem", help="pem file", required=False)
     args = parser.parse_args()
+    logger = logging.getLogger('Cisco-gRPC-Dialin')
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
     if args.tls:
         if args.pem:
             client = TLSDialInClient(args.host, args.port, args.pem, user=args.username, password=args.password)
         else:
-            print("Need pem file when using tls")
+            logger.error("Need pem file when using tls")
             exit(0)
     else:
         client = DialInClient(args.host, args.port, user=args.username, password=args.password)
@@ -97,20 +104,24 @@ def main():
     get_all_sensors_url = f"http://{args.elastic_server}:9200/*"
     get_all_sensors_response = request("GET", get_all_sensors_url)
     if not get_all_sensors_response.status_code == 200:
-        print("Error getting all devices to populate the device list")
+        logger.error("Error getting all devices to populate the device list")
         exit(0)
     for key in get_all_sensors_response.json():
         if not key.startswith('.'):
             sensor_list.append(key)
+    if not client.isconnected():
+        client.connect()
     with Pool() as pool:
         batch_list = []
         for response in client.subscribe(args.sub):
             batch_list.append(response)
             if len(batch_list) >= int(args.batch_size):
-                #result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, ))
-                elasticsearch_upload(batch_list, args, elastic_lock, sensor_list)
+                result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, logger_queue ))
+                #elasticsearch_upload(batch_list, args, elastic_lock, sensor_list)
                 del batch_list
                 batch_list = []
+                for log in list(logger.queue):
+                    
         
         
 if __name__ == '__main__':
