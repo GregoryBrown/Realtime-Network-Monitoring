@@ -1,7 +1,33 @@
 from urllib.parse import unquote
 from copy import deepcopy
+from collections import defaultdict
 import re
 import json
+
+def format_output(telemetry_jsonformat):
+    telemetry_json = json.loads(telemetry_jsonformat)
+    if "dataGpbkv" in telemetry_json:
+        for data in telemetry_json["dataGpbkv"]:
+            output = _format_fields(data["fields"])
+            output["encode_path"] = telemetry_json["encodingPath"]
+            output["node"] = telemetry_json["nodeIdStr"]
+            output['timestamp'] = data["timestamp"]
+            yield json.dumps(output)
+
+
+def _format_fields(data):
+    data_dict = defaultdict(list)
+    for item in data:
+        if "fields"in item:
+            data_dict[item["name"]].append(_format_fields(item["fields"]))
+        else:
+            rc_value = {'null':'null'}
+            for key, value in item.items():
+                if 'Value' in key:
+                    rc_value = value 
+                    data_dict[item["name"]] = rc_value
+    return data_dict
+
 
 def json_tree_traversal(tree):
     metric_list = sub_traverse_tree(tree)

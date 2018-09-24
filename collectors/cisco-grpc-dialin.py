@@ -10,34 +10,10 @@ from argparse import ArgumentParser
 from requests import request
 from multiprocessing import Pool, Manager
 from collections import defaultdict
+from utils.utils import format_output, _format_fields
 import grpc
 import json
 import logging
-
-
-def format_output(telemetry_jsonformat):
-    telemetry_json = json.loads(telemetry_jsonformat)
-    if "dataGpbkv" in telemetry_json:
-        for data in telemetry_json["dataGpbkv"]:
-            output = _format_fields(data["fields"])
-            output["encode_path"] = telemetry_json["encodingPath"]
-            output["node"] = telemetry_json["nodeIdStr"]
-            output['timestamp'] = data["timestamp"]
-            yield json.dumps(output)
-
-def _format_fields(data):
-    data_dict = defaultdict(list)
-    for item in data:
-        if "fields"in item:
-            data_dict[item["name"]].append(_format_fields(item["fields"]))
-        else:
-            rc_value = {'null':'null'}
-            for key, value in item.items():
-                if 'Value' in key:
-                    rc_value = value
-                    data_dict[item["name"]] = rc_value
-    return data_dict
-
 
 
 def elasticsearch_upload(segments, args, lock, index_list):
@@ -131,8 +107,8 @@ def main():
         for response in client.subscribe(args.sub):
             batch_list.append(response)
             if len(batch_list) >= int(args.batch_size):
-                result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, ))
-                #elasticsearch_upload(batch_list, args, elastic_lock, sensor_list)
+                #result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, ))
+                elasticsearch_upload(batch_list, args, elastic_lock, sensor_list)
                 del batch_list
                 batch_list = []
         
