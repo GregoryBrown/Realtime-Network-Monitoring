@@ -85,13 +85,6 @@ def main():
     parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", required=False, action='store_true')
     parser.add_argument("-m", "--pem", dest="pem", help="pem file", required=False)
     args = parser.parse_args()
-    logger = logging.getLogger('Cisco-gRPC-Dialin')
-    logger.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
     if args.tls:
         if args.pem:
             client = TLSDialInClient(args.host, args.port, args.pem, user=args.username, password=args.password)
