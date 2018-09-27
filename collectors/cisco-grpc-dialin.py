@@ -1,6 +1,7 @@
 import sys
 sys.path.append("../")
 
+from utils.multi_process_logging import *
 from utils.connectors import DialInClient, TLSDialInClient
 from py_protos.telemetry_pb2 import Telemetry
 from databases import databases
