@@ -1,7 +1,7 @@
 import sys
 sys.path.append("../")
 
-from utils.multi_process_logging import *
+from utils.multi_process_logging import  MultiProcessQueueLoggingListner, MulitProcessQueueLogger
 from utils.connectors import DialInClient, TLSDialInClient
 from py_protos.telemetry_pb2 import Telemetry
 from databases import databases
@@ -9,7 +9,7 @@ from google.protobuf import json_format
 from collections import defaultdict
 from argparse import ArgumentParser
 from requests import request
-from multiprocessing import Pool, Manager
+from multiprocessing import Pool, Manager, Queue
 from collections import defaultdict
 from utils.utils import format_output, _format_fields
 import grpc
@@ -17,7 +17,8 @@ import json
 import logging
 
 
-def elasticsearch_upload(segments, args, lock, index_list):
+def elasticsearch_upload(segments, args, lock, index_list, log_queue):
+    logger = MultiProcessQueueLogger('cisco-grpc-dialin.log', log_queue)
     decode_segments = []
     converted_decode_segments = []
     sorted_by_index = {}
@@ -43,16 +44,16 @@ def elasticsearch_upload(segments, args, lock, index_list):
         if not index in index_list:
             with lock:
                 if not index in index_list:
-                    print('Acciqured lock to put index in elasticsearch')
+                    logger.info('Acciqured lock to put index in elasticsearch')
                     headers = {'Content-Type': "application/json"}
                     mapping = {"settings": {"index.mapping.total_fields.limit": 2000},"mappings": {"nodes": {
                         "properties": {"type": {"type": "keyword"},"keys": {"type": "object"},"content": {"type": "object"},"timestamp": {"type": "date"}}}}}
                     index_put_response = request("PUT", index_url, headers=headers, json=mapping)
                     if not index_put_response.status_code == 200:
-                        print("Error when creating index")
-                        print(index_put_response.status_code)
-                        print(index_put_response.json())
-                        exit(0)
+                        logger.error("Error when creating index")
+                        logger.error(index_put_response.status_code)
+                        logger.error(index_put_response.json())
+                        return False
                     index_list.append(index)
         data_url = f"http://{args.elastic_server}:9200/_bulk"
         segment_list = sorted_by_index[key]
@@ -68,8 +69,9 @@ def elasticsearch_upload(segments, args, lock, index_list):
         headers = {'Content-Type': "application/x-ndjson"}
         reply = request("POST", data_url, data=data_to_post, headers=headers)
         if reply.json()['errors']:
-            print("Error while uploading in bulk")
-            exit(0)
+            logger.error("Error while uploading in bulk")
+            return False
+    return True
 
 
 
@@ -85,11 +87,13 @@ def main():
     parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", required=False, action='store_true')
     parser.add_argument("-m", "--pem", dest="pem", help="pem file", required=False)
     args = parser.parse_args()
+    log_queue = Queue()
+
     if args.tls:
         if args.pem:
             client = TLSDialInClient(args.host, args.port, args.pem, user=args.username, password=args.password)
         else:
-            logger.error("Need pem file when using tls")
+            print("Need pem file when using tls")
             exit(0)
     else:
         client = DialInClient(args.host, args.port, user=args.username, password=args.password)
@@ -98,24 +102,25 @@ def main():
     get_all_sensors_url = f"http://{args.elastic_server}:9200/*"
     get_all_sensors_response = request("GET", get_all_sensors_url)
     if not get_all_sensors_response.status_code == 200:
-        logger.error("Error getting all devices to populate the device list")
+        print("Error getting all devices to populate the device list")
         exit(0)
     for key in get_all_sensors_response.json():
         if not key.startswith('.'):
             sensor_list.append(key)
     if not client.isconnected():
         client.connect()
+    log_listener = MultiProcessQueueLoggingListner('cisco-grpc-dialin.log', log_queue)
+    log_listener.start()
     with Pool() as pool:
         batch_list = []
         for response in client.subscribe(args.sub):
             batch_list.append(response)
             if len(batch_list) >= int(args.batch_size):
-                result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, logger_queue ))
+                result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, log_queue ))
                 #elasticsearch_upload(batch_list, args, elastic_lock, sensor_list)
                 del batch_list
                 batch_list = []
-                for log in list(logger.queue):
-                    
+                                 
         
         
 if __name__ == '__main__':
