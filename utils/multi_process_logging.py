@@ -30,7 +30,7 @@ class MultiProcessQueueLoggingListner(Process):
         self.file_handler.setFormatter(self.formatter)
         self.logger.addHandler(self.file_handler)
 
-class MulitProcessQueueLogger(object):
+class MultiProcessQueueLogger(object):
     def __init__(self, name, queue):
         self.name = name
         self.queue = queue
