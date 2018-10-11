@@ -1,5 +1,5 @@
 import logging
-from logging.handlers   import RotatingFileHandler, QueueHandler
+from logging.handlers import RotatingFileHandler, QueueHandler
 from multiprocessing import Process
 from queue import Empty
 
@@ -20,15 +20,18 @@ class MultiProcessQueueLoggingListner(Process):
                 self.logger.handle(record)
             except Exception:
                 import sys, traceback
-                print('Whoops! Problem:', file=sys.stderr)
+                print('Problem:', file=sys.stderr)
                 traceback.print_exc(file=sys.stderr)
 
     def configure(self):
         self.logger = logging.getLogger(self.name)
         self.file_handler = RotatingFileHandler(self.name, maxBytes=536870912, backupCount=2)
+        self.screen_handler = logging.StreamHandler()
         self.formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
         self.file_handler.setFormatter(self.formatter)
+        self.screen_handler.setFormatter(self.formatter)
         self.logger.addHandler(self.file_handler)
+        self.logger.addHandler(self.screen_handler)
 
 class MultiProcessQueueLogger(object):
     def __init__(self, name, queue):

@@ -2,6 +2,14 @@
 Global Real Time Network Monitoring exception and warning classes.
 """
 
+class FormatDataError(Exception):
+    """Formatting data failed with error"""
+    pass
+
+class DeviceFailedToConnect(Exception):
+    """The device failed to connect"""
+    pass
+
 class DeviceDisconnected(Exception):
     """The device is disconnected"""
     pass

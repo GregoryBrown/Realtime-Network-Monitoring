@@ -1,3 +1,4 @@
+from utils.exceptions import FormatDataError
 from urllib.parse import unquote
 from copy import deepcopy
 from collections import defaultdict
@@ -8,13 +9,15 @@ def format_output(telemetry_jsonformat):
     telemetry_json = json.loads(telemetry_jsonformat)
     if "dataGpbkv" in telemetry_json:
         for data in telemetry_json["dataGpbkv"]:
-            output = _format_fields(data["fields"])
-            output["encode_path"] = telemetry_json["encodingPath"]
-            output["node"] = telemetry_json["nodeIdStr"]
-            output['timestamp'] = data["timestamp"]
-            yield json.dumps(output)
-
-
+            try:
+                output = _format_fields(data["fields"])
+                output["encode_path"] = telemetry_json["encodingPath"]
+                output["node"] = telemetry_json["nodeIdStr"]
+                output['timestamp'] = data["timestamp"]
+                yield json.dumps(output)
+            except Exception as e:
+                raise FormatDataError(f"Error while trying to format data:\n {data}") from e
+            
 def _format_fields(data):
     data_dict = defaultdict(list)
     for item in data:
@@ -24,7 +27,12 @@ def _format_fields(data):
             rc_value = {'null':'null'}
             for key, value in item.items():
                 if 'Value' in key:
-                    rc_value = value 
+                    if 'uint' in key:
+                        rc_value = int(value)
+                    elif 'String' in key:
+                        rc_value = str(value)
+                    else:
+                        rc_value = value 
                     data_dict[item["name"]] = rc_value
     return data_dict
 
