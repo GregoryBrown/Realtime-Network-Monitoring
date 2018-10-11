@@ -1,6 +1,7 @@
 import sys
 sys.path.append("../")
 
+from utils.exceptions import DeviceFailedToConnect, FormatDataError
 from utils.multi_process_logging import  MultiProcessQueueLoggingListner, MultiProcessQueueLogger
 from utils.connectors import DialInClient, TLSDialInClient
 from google.protobuf import json_format
@@ -14,24 +15,32 @@ from py_protos.telemetry_pb2 import Telemetry
 import grpc
 import json
 import logging
-
+import traceback
+import multiprocessing
 
 def elasticsearch_upload(batch_list, args, lock, index_list, log_queue):
-    process_logger = MultiProcessQueueLogger('cisco-grpc-dialin.log', log_queue)
-    process_logger.logger.info('Got into the process')
     decode_segments = []
     converted_decode_segments = []
     sorted_by_index = {}
+    process_logger = MultiProcessQueueLogger('grpc-dial-in.log', log_queue)
     #Decode all segments
     for segment in batch_list:
-        telemetry_pb = Telemetry()                                                                                                                                                                     
+        telemetry_pb = Telemetry()                                             
         telemetry_pb.ParseFromString(segment)
         decode_segments.append(json_format.MessageToJson(telemetry_pb))
     #Convert decode segments into elasticsearch messages, and save to list for upload 
     for decode_segment in decode_segments:
-    #for decode_segment in segments:
-        for output in format_output(decode_segment):
-            converted_decode_segments.append(json.loads(output))
+        try:
+            for output in format_output(decode_segment):
+                converted_decode_segments.append(json.loads(output))
+        except FormatDataError as e:
+            process_logger.logger.error(e)
+            process_logger.logger.error(traceback.format_exc())
+        #except Exception as e:
+        #    process_logger.logger.error(e)
+        #    process_logger.logger.error(traceback.format_exc())
+        #    return False
+            
     #Sort all segments by index
     for converted_decode_segment in converted_decode_segments:
         if not converted_decode_segment["encode_path"] in sorted_by_index.keys():
@@ -91,24 +100,43 @@ def main():
     log_queue = Manager().Queue()
     elastic_lock = Manager().Lock()
     sensor_list = Manager().list()
-    log_listener = MultiProcessQueueLoggingListner('cisco-grpc-dialin.log', log_queue)
+    log_listener = MultiProcessQueueLoggingListner('grpc-dial-in.log', log_queue)
     log_listener.start()
-    main_logger = MultiProcessQueueLogger('cisco-grpc-dialin.log', log_queue)
+    main_logger = logging.getLogger('grpc-dial-in.log')
     if args.tls:
         if args.pem:
             client = TLSDialInClient(args.host, args.port, args.pem, user=args.username, password=args.password)
         else:
-            main_logger.logger.error("Need pem file when using tls")
-            main_logger.queue.put(None)
+            main_logger.error("Need to have a pem file")
+            log_listener.queue.put(None)
             log_listener.join()
             exit(0)            
     else:
         client = DialInClient(args.host, args.port, user=args.username, password=args.password)
+    try:
+        client.connect()
+    except DeviceFailedToConnect as e:
+        main_logger.error("Unable to connect to device")
+        main_logger.error(traceback.format_exc())
+        log_listener.queue.put(None)
+        log_listener.join()
+        exit(0)
+    except Exception as e:
+        main_logger.error(traceback.format_exc())
+        log_listener.queue.put(None)
+        log_listener.join()
+        exit(0)
     get_all_sensors_url = f"http://{args.elastic_server}:9200/*"
-    get_all_sensors_response = request("GET", get_all_sensors_url)
-    if not get_all_sensors_response.status_code == 200:
-        main_logger.logger.error("Error getting all devices to populate the device list")
-        main_logger.queue.put(None)
+    try:
+        get_all_sensors_response = request("GET", get_all_sensors_url)
+        if not get_all_sensors_response.status_code == 200:
+            main_logger.error("Error getting all devices to populate the device list")
+            log_listener.join()
+            exit(0)
+    except Exception as e:
+        main_logger.error(e)
+        main_logger.error(traceback.format_exc())
+        log_listener.queue.put(None)
         log_listener.join()
         exit(0)
     for key in get_all_sensors_response.json():
@@ -122,13 +150,10 @@ def main():
             batch_list.append(response.data)
             if len(batch_list) >= int(args.batch_size):
                 result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, log_queue, ))
-                print(result.get())
                 #elasticsearch_upload(batch_list, args, elastic_lock, sensor_list, log_queue)
                 del batch_list
                 batch_list = []
-                                 
-        
-    main_logger.queue.puut(None)
+    log_listener.queue.put(None)
     log_listener.join()
 if __name__ == '__main__':
     main()
