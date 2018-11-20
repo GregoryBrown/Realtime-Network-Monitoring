@@ -28,6 +28,7 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_queue):
         telemetry_pb = Telemetry()                                             
         telemetry_pb.ParseFromString(segment)
         decode_segments.append(json_format.MessageToJson(telemetry_pb))
+        #print(telemetry_pb)
     #Convert decode segments into elasticsearch messages, and save to list for upload 
     for decode_segment in decode_segments:
         try:
@@ -36,10 +37,11 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_queue):
         except FormatDataError as e:
             process_logger.logger.error(e)
             process_logger.logger.error(traceback.format_exc())
-        #except Exception as e:
-        #    process_logger.logger.error(e)
-        #    process_logger.logger.error(traceback.format_exc())
-        #    return False
+            return False
+        except Exception as e:
+            process_logger.logger.error(e)
+            process_logger.logger.error(traceback.format_exc())
+            return False
             
     #Sort all segments by index
     for converted_decode_segment in converted_decode_segments:
@@ -80,11 +82,13 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_queue):
         reply = request("POST", data_url, data=data_to_post, headers=headers)
         if reply.json()['errors']:
             process_logger.logger.error("Error while uploading in bulk")
+            process_logger.logger.error(reply.json())
+            #process_logger.logger.error(data_to_post)
             return False
     return True
 
 
-
+    
 def main():
     parser = ArgumentParser()
     parser.add_argument("-s", "--subscription", dest="sub", help="Subscription name", required=True)
@@ -100,6 +104,7 @@ def main():
     log_queue = Manager().Queue()
     elastic_lock = Manager().Lock()
     sensor_list = Manager().list()
+    data_queue = Manager().Queue()
     log_listener = MultiProcessQueueLoggingListner('grpc-dial-in.log', log_queue)
     log_listener.start()
     main_logger = logging.getLogger('grpc-dial-in.log')
@@ -112,25 +117,13 @@ def main():
             log_listener.join()
             exit(0)            
     else:
-        client = DialInClient(args.host, args.port, user=args.username, password=args.password)
-    try:
-        client.connect()
-    except DeviceFailedToConnect as e:
-        main_logger.error("Unable to connect to device")
-        main_logger.error(traceback.format_exc())
-        log_listener.queue.put(None)
-        log_listener.join()
-        exit(0)
-    except Exception as e:
-        main_logger.error(traceback.format_exc())
-        log_listener.queue.put(None)
-        log_listener.join()
-        exit(0)
+        client = DialInClient(args.host, args.port, data_queue, args.sub,  user=args.username, password=args.password)
     get_all_sensors_url = f"http://{args.elastic_server}:9200/*"
     try:
         get_all_sensors_response = request("GET", get_all_sensors_url)
         if not get_all_sensors_response.status_code == 200:
             main_logger.error("Error getting all devices to populate the device list")
+            log_listener.queue.put(None)
             log_listener.join()
             exit(0)
     except Exception as e:
@@ -139,21 +132,27 @@ def main():
         log_listener.queue.put(None)
         log_listener.join()
         exit(0)
+        
     for key in get_all_sensors_response.json():
         if not key.startswith('.'):
             sensor_list.append(key)
-    if not client.isconnected():
-        client.connect()
+    client.start()
     with Pool() as pool:
         batch_list = []
-        for response in client.subscribe(args.sub):
-            batch_list.append(response.data)
+        while client.is_alive():
+            batch_list.append(data_queue.get())
+            #print(len(batch_list))
             if len(batch_list) >= int(args.batch_size):
                 result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, sensor_list, log_queue, ))
+                #if not result.get():
+                #    break
                 #elasticsearch_upload(batch_list, args, elastic_lock, sensor_list, log_queue)
                 del batch_list
                 batch_list = []
+    client.join()
     log_listener.queue.put(None)
     log_listener.join()
+
+    
 if __name__ == '__main__':
     main()

@@ -1,3 +1,14 @@
+import sys
+sys.path.append("../")
+
+from google.protobuf import json_format
+from collections import defaultdict
+from collections import defaultdict
+from utils.utils import format_output, _format_fields
+from py_protos.telemetry_pb2 import Telemetry
+import grpc
+import logging
+import traceback
 import json
 from argparse import ArgumentParser
 from configparser import ConfigParser
@@ -7,7 +18,6 @@ from tornado.queues import Queue
 from tornado import gen
 from tornado.ioloop import IOLoop
 from struct import Struct, unpack
-from telemetry_pb2 import Telemetry
 from requests import request
 
 class TelemetryTCPDialOutServer(TCPServer):
@@ -28,19 +38,20 @@ class TelemetryTCPDialOutServer(TCPServer):
                 encoding = {1:'gpb', 2:'json'}[encode_type]
                 msg_data = b''
                 if encode_type == 1:
-                    #print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
+                    print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
                     while len(msg_data) < msg_length:
                         packet = yield stream.read_bytes(msg_length - len(msg_data))
                         msg_data += packet
-                    #gpb_data =Telemetry()
-                    #gpb_data.ParseFromString(msg_data)
-                    #print(gpb_data)
+                    gpb_data =Telemetry()
+                    gpb_data.ParseFromString(msg_data)
+                    print(gpb_data)
                 else:
-                    #print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
+                    print(f'Got {msg_length} bytes from {address} with encoding {encoding}')
                     while len(msg_data) < msg_length:
                         packet = yield stream.read_bytes(msg_length - len(msg_data))
                         msg_data += packet
                     json_data = json.loads(msg_data.decode("ascii"))
+                    print(json_data)
                     del json_data
                     #yield self.queue.put(json_data)
                     #url = f"http://web-ott-tsdb-server-1:9200/{json_data['encoding_path'].replace('/','-').lower()}"
@@ -72,25 +83,18 @@ def rest_request(queue):
         finally:
             queue.task_done()
                 
-#main
+
 def main():
     parser = ArgumentParser()
-    parser.add_argument("-c", "--config", dest="config", help="Config file for dial-out telemetry server", required=True)
+    parser.add_argument("-a", "--host", dest="host", help="host", required=True)
+    parser.add_argument("-r", "--port", dest="port", help="port", required=True)
+    parser.add_argument("-b", "--batch_size", dest="batch_size", help="Batch size", required=True)
+    parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server", required=True)
     args = parser.parse_args()
-    config_parser = ConfigParser()
-    config_parser.read(args.config)
     queue = Queue()
     tcp_server = TelemetryTCPDialOutServer(queue)
-    for section in config_parser.sections():
-        for port in json.loads(config_parser.get(section,"Ports")):
-            if section == 'TCP':
-                tcp_server.bind(port)
-            elif section == 'GRPC':
-                pass
-            else:
-                pass
+    tcp_server.bind(args.port)
     tcp_server.start(0)
-    #IOLoop.current().add_callback(rest_request, queue)
     IOLoop.current().start()
 
 
