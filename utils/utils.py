@@ -1,3 +1,6 @@
+import sys
+sys.path.append("../")
+
 from utils.exceptions import FormatDataError
 from urllib.parse import unquote
 from copy import deepcopy
@@ -16,7 +19,8 @@ def format_output(telemetry_jsonformat):
                 output['timestamp'] = data["timestamp"]
                 yield json.dumps(output)
             except Exception as e:
-                raise FormatDataError(f"Error while trying to format data:\n {data}") from e
+                msg = f"Error while trying to format data:\n {data}"
+                raise FormatDataError(msg) from e
             
 def _format_fields(data):
     data_dict = defaultdict(list)
@@ -28,7 +32,10 @@ def _format_fields(data):
             for key, value in item.items():
                 if 'Value' in key:
                     if 'uint' in key:
+                        #Check if is an int, and if it is a BIG INTEGER make string so it can upload to ES
                         rc_value = int(value)
+                        if rc_value > sys.maxsize:
+                            rc_value = str(rc_value)
                     elif 'String' in key:
                         rc_value = str(value)
                     else:
