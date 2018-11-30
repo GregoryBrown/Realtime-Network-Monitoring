@@ -110,7 +110,7 @@ def main():
     main_logger = logging.getLogger('grpc-dial-in.log')
     if args.tls:
         if args.pem:
-            client = TLSDialInClient(args.host, args.port, args.pem, user=args.username, password=args.password)
+            client = TLSDialInClient(args.host, args.port, data_queue, args.sub, args.pem, user=args.username, password=args.password)
         else:
             main_logger.error("Need to have a pem file")
             log_listener.queue.put(None)
@@ -136,7 +136,17 @@ def main():
     for key in get_all_sensors_response.json():
         if not key.startswith('.'):
             sensor_list.append(key)
-    client.start()
+    try:
+        client.start()
+        while not client.isconnected():
+            pass
+    except DeviceFailedToConnect:
+        client.join()
+        main_logger.error(e)
+        main_logger.error(traceback.format_exc())
+        log_listener.queue.put(None)
+        log_listener.join()
+        exit(0)
     with Pool() as pool:
         batch_list = []
         while client.is_alive():
