@@ -51,9 +51,9 @@ class DialInClient(Process):
 
         
 class TLSDialInClient(DialInClient):
-    def __init__(self, host, port, pem, timeout=10000000, user='root', password='lablab'):
+    def __init__(self, host, port, data_queue, sub_args, pem, timeout=100000000, user='root', password='lablab', name='DialInClient'):
         self._pem = pem
-        super().__init__(host, port, timeout, user, password)
+        super().__init__(host, port, data_queue, sub_args, timeout, user, password)
 
     def connect(self):
         creds = grpc.ssl_channel_credentials(open(self._pem, "rb").read())
