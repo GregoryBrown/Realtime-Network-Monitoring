@@ -5,7 +5,7 @@ from queue import Empty
 
 class MultiProcessQueueLoggingListner(Process):
     def __init__(self, name, queue):
-        super().__init__(name=name+'-multiQueueLogListener')
+        super().__init__(name=name)
         self.log_name = name
         self.queue = queue
         
@@ -25,7 +25,7 @@ class MultiProcessQueueLoggingListner(Process):
 
     def configure(self):
         self.logger = logging.getLogger(self.log_name)
-        self.file_handler = RotatingFileHandler(self.log_name+'.log', maxBytes=536870912, backupCount=2)
+        self.file_handler = RotatingFileHandler(self.log_name, maxBytes=536870912, backupCount=2)
         self.screen_handler = logging.StreamHandler()
         self.formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
         self.file_handler.setFormatter(self.formatter)
