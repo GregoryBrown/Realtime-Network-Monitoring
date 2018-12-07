@@ -58,7 +58,7 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
         if not index in index_list:
             with lock:
                 if not index in index_list:
-                    process_logger.logger.info('Acciqured lock to put index in elasticsearch')
+                    process_logger.info('Acciqured lock to put index in elasticsearch')
                     headers = {'Content-Type': "application/json"}
                     mapping = {"settings": {"index.mapping.total_fields.limit": 2000},"mappings": {"nodes": {
                         "properties": {"type": {"type": "keyword"},"keys": {"type": "object"},"content": {"type": "object"},"timestamp": {"type": "date"}}}}}
