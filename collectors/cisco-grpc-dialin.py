@@ -30,7 +30,7 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
         telemetry_pb = Telemetry()                                             
         telemetry_pb.ParseFromString(segment)
         decode_segments.append(json_format.MessageToJson(telemetry_pb))
-        #print(telemetry_pb)
+        print(telemetry_pb)
     #Convert decode segments into elasticsearch messages, and save to list for upload 
     for decode_segment in decode_segments:
         try:
