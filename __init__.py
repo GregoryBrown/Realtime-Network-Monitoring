@@ -1,3 +1,3 @@
-from . import collectors, py_protos
+from . import collectors, py_protos, utils
 
-__all__ = ["collectors", "py_protos"]
+__all__ = ["collectors", "py_protos", "utils"]
