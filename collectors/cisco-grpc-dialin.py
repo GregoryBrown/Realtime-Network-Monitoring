@@ -139,7 +139,8 @@ def main():
     connected = Value(c_bool,False)
     if args.gnmi:
         log_path = "-".join(args.path.split('/')[:6])
-        log_name = f"{log_path}-{args.host}-grpc.log"
+        log_path = log_path.replace('[', '-').replace(']', '-')
+        log_name = f"{log_path}-{args.host.replace('[', '-').replace(']', '-')}-gnmi.log"
     else:
         log_name = f"{args.sub}-{args.host}-grpc.log"
     log_listener, main_logger = init_logging(log_name, log_queue)
