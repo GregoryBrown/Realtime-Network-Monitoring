@@ -5,8 +5,33 @@ from utils.exceptions import FormatDataError
 from urllib.parse import unquote
 from copy import deepcopy
 from collections import defaultdict
+from py_protos.gnmi_pb2 import PathElem, Path
 import re
 import json
+
+
+
+
+def create_gnmi_path(path):
+    path_elements = []
+    if path[0]=='/':
+        if path[-1]=='/':
+            path_list = re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)[1:-1]
+        else:
+            path_list =  re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)[1:]
+    else:
+        if path[-1]=='/':
+            path_list =  re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)[:-1]
+        else:
+            path_list =  re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)
+
+    for e in path_list:
+        eName = e.split("[", 1)[0]
+        eKeys = re.findall('\[(.*?)\]', e)
+        dKeys = dict(x.split('=', 1) for x in eKeys)
+        path_elements.append(PathElem(name=eName, key=dKeys))
+    return Path(elem=path_elements)
+    
 
 def format_output(telemetry_jsonformat):
     telemetry_json = json.loads(telemetry_jsonformat)
