@@ -2,6 +2,7 @@ import sys
 import json
 import logging
 import traceback
+sys.path.append("../")
 from utils.exceptions import FormatDataError
 from utils.connectors import DialInClient, TLSDialInClient
 from google.protobuf import json_format
@@ -13,7 +14,7 @@ from utils.utils import format_output, create_gnmi_path, init_logging, populate_
 from py_protos.telemetry_pb2 import Telemetry
 from ctypes import c_bool
 
-sys.path.append("../")
+
 
 
 def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
