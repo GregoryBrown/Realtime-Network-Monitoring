@@ -1,37 +1,33 @@
 import sys
-sys.path.append("../")
-
-from utils.exceptions import DeviceFailedToConnect, FormatDataError
-
-from utils.connectors import DialInClient, TLSDialInClient
-from google.protobuf import json_format
-from collections import defaultdict
-from argparse import ArgumentParser
-
-from multiprocessing import Pool, Manager, Queue, Lock, Value
-from queue import Empty
-from collections import defaultdict
-from utils.utils import format_output, _format_fields, create_gnmi_path, init_logging, populate_index_list
-from py_protos.telemetry_pb2 import Telemetry
-from ctypes import c_bool
-import grpc
 import json
 import logging
 import traceback
-import multiprocessing
+from utils.exceptions import FormatDataError
+from utils.connectors import DialInClient, TLSDialInClient
+from google.protobuf import json_format
+from argparse import ArgumentParser
+from multiprocessing import Pool, Manager, Queue, Value
+from queue import Empty
+from requests import request
+from utils.utils import format_output, create_gnmi_path, init_logging, populate_index_list
+from py_protos.telemetry_pb2 import Telemetry
+from ctypes import c_bool
+
+sys.path.append("../")
+
 
 def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
     decode_segments = []
     converted_decode_segments = []
     sorted_by_index = {}
     process_logger = logging.getLogger(log_name)
-    #Decode all segments
+    # Decode all segments
     for segment in batch_list:
-        telemetry_pb = Telemetry()                                             
+        telemetry_pb = Telemetry()
         telemetry_pb.ParseFromString(segment)
         decode_segments.append(json_format.MessageToJson(telemetry_pb))
         print(telemetry_pb)
-    #Convert decode segments into elasticsearch messages, and save to list for upload 
+    # Convert decode segments into elasticsearch messages, and save to list for upload
     for decode_segment in decode_segments:
         try:
             for output in format_output(decode_segment):
@@ -44,24 +40,25 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
             process_logger.error(e)
             process_logger.error(traceback.format_exc())
             return False
-            
-    #Sort all segments by index
+
+    # Sort all segments by index
     for converted_decode_segment in converted_decode_segments:
         if not converted_decode_segment["encode_path"] in sorted_by_index.keys():
             sorted_by_index[converted_decode_segment["encode_path"]] = [converted_decode_segment]
         else:
             sorted_by_index[converted_decode_segment["encode_path"]].append(converted_decode_segment)
-    #Bulk upload each index to elasticsearch
+    # Bulk upload each index to elasticsearch
     for key in sorted_by_index.keys():
-        index = key.replace('/','-').lower()
+        index = key.replace('/', '-').lower()
         index_url = f"http://{args.elastic_server}:9200/{index}"
-        if not index in index_list:
+        if index not in index_list:
             with lock:
-                if not index in index_list:
+                if index not in index_list:
                     process_logger.info('Acciqured lock to put index in elasticsearch')
                     headers = {'Content-Type': "application/json"}
-                    mapping = {"settings": {"index.mapping.total_fields.limit": 2000},"mappings": {"nodes": {
-                        "properties": {"type": {"type": "keyword"},"keys": {"type": "object"},"content": {"type": "object"},"timestamp": {"type": "date"}}}}}
+                    mapping = {"settings": {"index.mapping.total_fields.limit": 2000}, "mappings": {"nodes": {
+                        "properties": {"type": {"type": "keyword"}, "keys": {"type": "object"},
+                                       "content": {"type": "object"}, "timestamp": {"type": "date"}}}}}
                     index_put_response = request("PUT", index_url, headers=headers, json=mapping)
                     if not index_put_response.status_code == 200:
                         process_logger.error("Error when creating index")
@@ -72,8 +69,7 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
         data_url = f"http://{args.elastic_server}:9200/_bulk"
         segment_list = sorted_by_index[key]
         elastic_index = {'index': {'_index': f'{index}', '_type': 'nodes'}}
-        payload_list = []
-        payload_list.append(elastic_index)
+        payload_list = [elastic_index]
         for segment in segment_list:
             payload_list.append(segment)
             payload_list.append(elastic_index)
@@ -85,10 +81,9 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
         if reply.json()['errors']:
             process_logger.error("Error while uploading in bulk")
             process_logger.error(reply.json())
-            #process_logger.logger.error(data_to_post)
+            # process_logger.logger.error(data_to_post)
             return False
     return True
-
 
 
 def main():
@@ -113,10 +108,9 @@ def main():
         parser.error("TLS requires a pem file")
 
     log_queue = Queue()
-    error_queue = Queue()
     data_queue = Queue()
     elastic_lock = Manager().Lock()
-    connected = Value(c_bool,False)
+    connected = Value(c_bool, False)
     if args.gnmi:
         log_path = "-".join(args.path.split('/')[:6])
         log_path = log_path.replace('[', '-').replace(']', '-')
@@ -132,9 +126,11 @@ def main():
                 if args.gnmi:
                     path = create_gnmi_path(args.path)
                     sample = int(args.sample) * 1000000000
-                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password, connected, pem, gnmi=True, path=path, sample=sample)
+                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username,
+                                             args.password, connected, pem, gnmi=True, path=path, sample=sample)
                 else:
-                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password, connected, pem)
+                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username,
+                                             args.password, connected, pem)
             except Exception as e:
                 main_logger.logger.error(e)
                 log_listener.queue.put(None)
@@ -144,7 +140,7 @@ def main():
             main_logger.logger.error("Need to have a pem file")
             log_listener.queue.put(None)
             log_listener.join()
-            exit(0)            
+            exit(0)
     else:
         if args.gnmi:
             try:
@@ -155,11 +151,13 @@ def main():
                 log_listener.queue.put(None)
                 log_listener.join()
                 exit(0)
-            client = DialInClient(args.host, args.port, data_queue, log_name,  args.sub, args.username, args.password, connected, gnmi=True, path=path, sample=sample)
+            client = DialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password,
+                                  connected, gnmi=True, path=path, sample=sample)
         else:
-            client = DialInClient(args.host, args.port, data_queue, log_name,  args.sub, args.username, args.password, connected)
-    indexices = populate_index_list(args.elastic_server, main_logger)
-    if indexices == False:
+            client = DialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password,
+                                  connected)
+    indices = populate_index_list(args.elastic_server, main_logger)
+    if indices is False:
         log_listener.queue.put(None)
         log_listener.join()
         exit(0)
@@ -171,34 +169,35 @@ def main():
         while client.is_alive():
             try:
                 data = data_queue.get(timeout=1)
-                if not data == None:
+                if data is not None:
                     batch_list.append(data)
                     print(len(batch_list))
                     if len(batch_list) >= int(args.batch_size):
-                        result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, indexices, log_name, ))
-                        #print(result.get())
-                        #if not result.get():
+                        result = pool.apply_async(elasticsearch_upload,
+                                                  (batch_list, args, elastic_lock, indices, log_name,))
+                        # print(result.get())
+                        # if not result.get():
                         #    break
-                        #elasticsearch_upload(batch_list, args, elastic_lock, indexices, log_name)
+                        # elasticsearch_upload(batch_list, args, elastic_lock, indecies, log_name)
                         del batch_list
                         batch_list = []
             except Empty:
                 if not len(batch_list) == 0:
-                    main_logger.logger.info(f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size by {len(batch_list)}")
-                    result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, indexices, log_name, ))
-                    #if not result.get():                                                                                                                                                                  
+                    main_logger.logger.info(
+                        f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size "
+                        f"by {len(batch_list)}")
+                    result = pool.apply_async(elasticsearch_upload,
+                                              (batch_list, args, elastic_lock, indices, log_name,))
+                    # if not result.get():
                     #    break
-                    #elasticsearch_upload(batch_list, args, elastic_lock, indexices, log_name)
+                    # elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
                     del batch_list
                     batch_list = []
-
-                    
 
     client.join()
     log_listener.queue.put(None)
     log_listener.join()
-    
 
-    
+
 if __name__ == '__main__':
     main()
