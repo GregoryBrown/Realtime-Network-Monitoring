@@ -5,8 +5,63 @@ from utils.exceptions import FormatDataError
 from urllib.parse import unquote
 from copy import deepcopy
 from collections import defaultdict
+from py_protos.gnmi_pb2 import PathElem, Path
+from .multi_process_logging import  MultiProcessQueueLoggingListner, MultiProcessQueueLogger
+from multiprocessing import Manager
+from requests import request
 import re
 import json
+
+
+
+
+
+def init_logging(name, queue):
+    log_listener = MultiProcessQueueLoggingListner(name, queue)
+    log_listener.start()
+    main_logger = MultiProcessQueueLogger(name, queue)
+    return log_listener, main_logger
+
+
+
+def populate_index_list(elastic_server, main_logger):
+    sensor_list = Manager().list()
+    get_all_sensors_url = f"http://{elastic_server}:9200/*"
+    try:
+        get_all_sensors_response = request("GET", get_all_sensors_url)
+        if not get_all_sensors_response.status_code == 200:
+            main_logger.logger.error("Response status wasn't 200")
+            main_logger.logger.error(get_all_sensors_response.json())
+            return False
+    except Exception as e:
+        main_logger.logger.error(e)
+        return False
+    for key in get_all_sensors_response.json():
+        if not key.startswith('.'):
+            sensor_list.append(key)
+    return sensor_list
+
+
+def create_gnmi_path(path):
+    path_elements = []
+    if path[0]=='/':
+        if path[-1]=='/':
+            path_list = re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)[1:-1]
+        else:
+            path_list =  re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)[1:]
+    else:
+        if path[-1]=='/':
+            path_list =  re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)[:-1]
+        else:
+            path_list =  re.split('''/(?=(?:[^\[\]]|\[[^\[\]]+\])*$)''', path)
+
+    for e in path_list:
+        eName = e.split("[", 1)[0]
+        eKeys = re.findall('\[(.*?)\]', e)
+        dKeys = dict(x.split('=', 1) for x in eKeys)
+        path_elements.append(PathElem(name=eName, key=dKeys))
+    return Path(elem=path_elements)
+    
 
 def format_output(telemetry_jsonformat):
     telemetry_json = json.loads(telemetry_jsonformat)

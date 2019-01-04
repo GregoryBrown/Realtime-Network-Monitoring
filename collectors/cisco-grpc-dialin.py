@@ -2,16 +2,16 @@ import sys
 sys.path.append("../")
 
 from utils.exceptions import DeviceFailedToConnect, FormatDataError
-from utils.multi_process_logging import  MultiProcessQueueLoggingListner, MultiProcessQueueLogger
+
 from utils.connectors import DialInClient, TLSDialInClient
 from google.protobuf import json_format
 from collections import defaultdict
 from argparse import ArgumentParser
-from requests import request
+
 from multiprocessing import Pool, Manager, Queue, Lock, Value
 from queue import Empty
 from collections import defaultdict
-from utils.utils import format_output, _format_fields
+from utils.utils import format_output, _format_fields, create_gnmi_path, init_logging, populate_index_list
 from py_protos.telemetry_pb2 import Telemetry
 from ctypes import c_bool
 import grpc
@@ -90,37 +90,10 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
     return True
 
 
-def init_logging(name, queue):
-    log_listener = MultiProcessQueueLoggingListner(name, queue)
-    log_listener.start()
-    main_logger = MultiProcessQueueLogger(name, queue)
-    return log_listener, main_logger
-
-
-
-def populate_index_list(elastic_server, main_logger):
-    sensor_list = Manager().list()
-    get_all_sensors_url = f"http://{elastic_server}:9200/*"
-    try:
-        get_all_sensors_response = request("GET", get_all_sensors_url)
-        if not get_all_sensors_response.status_code == 200:
-            main_logger.logger.error("Response status wasn't 200")
-            main_logger.logger.error(get_all_sensors_response.json())
-            return False
-    except Exception as e:
-        main_logger.logger.error(e)
-        return False
-    for key in get_all_sensors_response.json():
-        if not key.startswith('.'):
-            sensor_list.append(key)
-    return sensor_list
-
-
-
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("-s", "--subscription", dest="sub", help="Subscription name", required=True)
+    parser.add_argument("-s", "--subscription", dest="sub", help="Subscription name", required=False)
     parser.add_argument("-u", "--username", dest="username", help="Username", required=True)
     parser.add_argument("-p", "--password", dest="password", help="Password", required=True)
     parser.add_argument("-a", "--host", dest="host", help="host", required=True)
@@ -129,20 +102,39 @@ def main():
     parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server", required=True)
     parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", required=False, action='store_true')
     parser.add_argument("-m", "--pem", dest="pem", help="pem file", required=False)
+    parser.add_argument("-g", "--gnmi", dest="gnmi", help="gnmi encoding", required=False, action='store_true')
+    parser.add_argument("-l", "--sample", dest="sample", help="sample poll time", required=False)
+    parser.add_argument("-c", "--path", dest="path", help="path for gnmi support", required=False)
     args = parser.parse_args()
+    if args.gnmi and (args.sample is None or args.path is None):
+        parser.error("gnmi requires a sample time and a path")
+
+    if args.tls and args.pem is None:
+        parser.error("TLS requires a pem file")
+
     log_queue = Queue()
     error_queue = Queue()
     data_queue = Queue()
     elastic_lock = Manager().Lock()
     connected = Value(c_bool,False)
-    log_name = f"{args.sub}-{args.host}-grpc.log"
+    if args.gnmi:
+        log_path = "-".join(args.path.split('/')[:6])
+        log_path = log_path.replace('[', '-').replace(']', '-')
+        log_name = f"{log_path}-{args.host.replace('[', '-').replace(']', '-')}-gnmi.log"
+    else:
+        log_name = f"{args.sub}-{args.host}-grpc.log"
     log_listener, main_logger = init_logging(log_name, log_queue)
     if args.tls:
         if args.pem:
             try:
                 with open(args.pem, "rb") as fp:
                     pem = fp.read()
-                client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password, connected, pem)
+                if args.gnmi:
+                    path = create_gnmi_path(args.path)
+                    sample = int(args.sample) * 1000000000
+                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password, connected, pem, gnmi=True, path=path, sample=sample)
+                else:
+                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password, connected, pem)
             except Exception as e:
                 main_logger.logger.error(e)
                 log_listener.queue.put(None)
@@ -154,7 +146,18 @@ def main():
             log_listener.join()
             exit(0)            
     else:
-        client = DialInClient(args.host, args.port, data_queue, log_name,  args.sub, args.username, args.password, connected)
+        if args.gnmi:
+            try:
+                path = create_gnmi_path(args.path)
+                sample = int(args.sample) * 1000000000
+            except Exception as e:
+                main_logger.logger.error(e)
+                log_listener.queue.put(None)
+                log_listener.join()
+                exit(0)
+            client = DialInClient(args.host, args.port, data_queue, log_name,  args.sub, args.username, args.password, connected, gnmi=True, path=path, sample=sample)
+        else:
+            client = DialInClient(args.host, args.port, data_queue, log_name,  args.sub, args.username, args.password, connected)
     indexices = populate_index_list(args.elastic_server, main_logger)
     if indexices == False:
         log_listener.queue.put(None)
@@ -170,7 +173,7 @@ def main():
                 data = data_queue.get(timeout=1)
                 if not data == None:
                     batch_list.append(data)
-                    #print(len(batch_list))
+                    print(len(batch_list))
                     if len(batch_list) >= int(args.batch_size):
                         result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, indexices, log_name, ))
                         #print(result.get())
