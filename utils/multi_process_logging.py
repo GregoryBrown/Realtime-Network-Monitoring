@@ -1,7 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler, QueueHandler
 from multiprocessing import Process
-from queue import Empty
+
 
 class MultiProcessQueueLoggingListner(Process):
     def __init__(self, name, queue):
@@ -33,6 +33,7 @@ class MultiProcessQueueLoggingListner(Process):
         self.logger.addHandler(self.file_handler)
         self.logger.addHandler(self.screen_handler)
 
+
 class MultiProcessQueueLogger(object):
     def __init__(self, name, queue):
         self.name = name
@@ -41,4 +42,3 @@ class MultiProcessQueueLogger(object):
         self.logger = logging.getLogger(name)
         self.logger.addHandler(self.queue_handler)
         self.logger.setLevel(logging.DEBUG)
-        

@@ -1,21 +1,20 @@
 import sys
+import grpc
+import logging
+
 sys.path.append("../")
 
 from py_protos.ems_grpc_pb2_grpc import gRPCConfigOperStub
 from py_protos.ems_grpc_pb2 import CreateSubsArgs
 from py_protos.gnmi_pb2_grpc import gNMIStub
-from py_protos.gnmi_pb2 import GetRequest, PathElem, Path, SubscribeRequest, SubscriptionList, Subscription, SubscriptionMode, Encoding
-from utils.exceptions import DeviceFailedToConnect
-from multiprocessing import Process, Queue
-from py_protos.telemetry_pb2 import Telemetry
+from py_protos.gnmi_pb2 import SubscribeRequest, SubscriptionList, Subscription
+from multiprocessing import Process
 from google.protobuf import json_format
-from utils.multi_process_logging import MultiProcessQueueLogger
-import traceback
-import grpc
-import logging
+
 
 class DialInClient(Process):
-    def __init__(self, host, port, data_queue, log_name, sub_args, user, password, connected, timeout=100000000, name='DialInClient', gnmi=False, path=None, sample=None):
+    def __init__(self, host, port, data_queue, log_name, sub_args, user, password, connected, timeout=100000000,
+                 name='DialInClient', gnmi=False, path=None, sample=None):
         super().__init__(name=name)
         self._gnmi = gnmi
         self._path = path
@@ -33,10 +32,10 @@ class DialInClient(Process):
         self.queue = data_queue
         self.sub_id = sub_args
 
-
-    def sub_to_path(self, sub):
+    @staticmethod
+    def sub_to_path(sub):
         yield sub
-        
+
     def subscribe(self):
         try:
             if self._gnmi:
@@ -50,7 +49,7 @@ class DialInClient(Process):
                     if got_sync:
                         self.queue.put_nowait(json_format.MessageToJson(response))
                     if response.sync_response:
-                        got_sync = True                        
+                        got_sync = True
             else:
                 self._cisco_ems_stub = gRPCConfigOperStub(self._channel)
                 sub_args = CreateSubsArgs(ReqId=1, encode=3, subidstr=self.sub_id)
@@ -67,14 +66,14 @@ class DialInClient(Process):
             self.queue.put_nowait(None)
             self._connected.value = False
 
-        
     def connect(self):
-        self._channel = grpc.insecure_channel(':'.join([self._host,self._port]))
+        self._channel = grpc.insecure_channel(':'.join([self._host, self._port]))
         try:
             grpc.channel_ready_future(self._channel).result(timeout=10)
             self._connected.value = True
         except grpc.FutureTimeoutError as e:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
+            self.log.error(e)
             exit(0)
 
     def isconnected(self):
@@ -85,21 +84,22 @@ class DialInClient(Process):
         if self.isconnected():
             self.subscribe()
 
-        
+
 class TLSDialInClient(DialInClient):
-    def __init__(self, host, port, data_queue, log_name, sub_args, user, password, connected, pem, timeout=100000000, name='DialInClient', gnmi=False, path=None, sample=None):
+    def __init__(self, host, port, data_queue, log_name, sub_args, user, password, connected, pem, timeout=100000000,
+                 name='DialInClient', gnmi=False, path=None, sample=None):
         self._pem = pem
-        super().__init__(host, port, data_queue, log_name, sub_args, user, password, connected, timeout, name, gnmi, path, sample)
-        
+        super().__init__(host, port, data_queue, log_name, sub_args, user, password, connected, timeout, name, gnmi,
+                         path, sample)
+
     def connect(self):
         creds = grpc.ssl_channel_credentials(self._pem)
         opts = (('grpc.ssl_target_name_override', 'ems.cisco.com',),)
-        self._channel = grpc.secure_channel(':'.join([self._host,self._port]), creds, opts)
+        self._channel = grpc.secure_channel(':'.join([self._host, self._port]), creds, opts)
         try:
             grpc.channel_ready_future(self._channel).result(timeout=10)
             self._connected.value = True
         except grpc.FutureTimeoutError as e:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
+            self.log.error(e)
             exit(0)
-
-                        
