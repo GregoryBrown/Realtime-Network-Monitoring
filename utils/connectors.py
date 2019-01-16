@@ -46,10 +46,11 @@ class DialInClient(Process):
                 req_iterator = self.sub_to_path(sub_request)
                 got_sync = False
                 for response in self._gnmi_stub.Subscribe(req_iterator, metadata=self._metadata):
-                    if got_sync:
-                        self.queue.put_nowait(json_format.MessageToJson(response))
                     if response.sync_response:
-                        got_sync = True
+                        self.log.info("Got all values")
+                    else:
+                        self.queue.put_nowait(json_format.MessageToJson(response))
+
             else:
                 self._cisco_ems_stub = gRPCConfigOperStub(self._channel)
                 sub_args = CreateSubsArgs(ReqId=1, encode=3, subidstr=self.sub_id)
@@ -79,10 +80,12 @@ class DialInClient(Process):
     def isconnected(self):
         return self._connected.value
 
+
     def run(self):
         self.connect()
         if self.isconnected():
             self.subscribe()
+            
 
 
 class TLSDialInClient(DialInClient):

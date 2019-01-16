@@ -5,52 +5,34 @@ import traceback
 sys.path.append("../")
 from utils.exceptions import FormatDataError
 from utils.connectors import DialInClient, TLSDialInClient
-from google.protobuf import json_format
 from argparse import ArgumentParser
 from multiprocessing import Pool, Manager, Queue, Value
 from queue import Empty
 from requests import request
-from utils.utils import format_output, create_gnmi_path, init_logging, populate_index_list
-from py_protos.telemetry_pb2 import Telemetry
+from utils.utils import create_gnmi_path, init_logging, populate_index_list, process_batch_list, get_host_node
 from ctypes import c_bool
 
 
 
 
 def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
-    decode_segments = []
-    converted_decode_segments = []
     sorted_by_index = {}
     process_logger = logging.getLogger(log_name)
-    # Decode all segments
-    for segment in batch_list:
-        telemetry_pb = Telemetry()
-        telemetry_pb.ParseFromString(segment)
-        decode_segments.append(json_format.MessageToJson(telemetry_pb))
-        print(telemetry_pb)
-    # Convert decode segments into elasticsearch messages, and save to list for upload
-    for decode_segment in decode_segments:
-        try:
-            for output in format_output(decode_segment):
-                converted_decode_segments.append(json.loads(output))
-        except FormatDataError as e:
-            process_logger.error(e)
-            process_logger.error(traceback.format_exc())
-            return False
-        except Exception as e:
-            process_logger.error(e)
-            process_logger.error(traceback.format_exc())
-            return False
+    try:
+        converted_decode_segments = process_batch_list(batch_list, args)
+    except Exception as e:
+        process_logger.error(e)
+        process_logger.error(traceback.format_exc())
+        return False
 
     # Sort all segments by index
     for converted_decode_segment in converted_decode_segments:
-        if not converted_decode_segment["encode_path"] in sorted_by_index.keys():
-            sorted_by_index[converted_decode_segment["encode_path"]] = [converted_decode_segment]
+        if not converted_decode_segment["_index"] in sorted_by_index.keys():
+            sorted_by_index[converted_decode_segment["_index"]] = [converted_decode_segment]
         else:
-            sorted_by_index[converted_decode_segment["encode_path"]].append(converted_decode_segment)
+            sorted_by_index[converted_decode_segment["_index"]].append(converted_decode_segment)
     # Bulk upload each index to elasticsearch
-    for key in sorted_by_index.keys():
-        index = key.replace('/', '-').lower()
+    for index in sorted_by_index.keys():
         index_url = f"http://{args.elastic_server}:9200/{index}"
         if index not in index_list:
             with lock:
@@ -68,10 +50,11 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
                         return False
                     index_list.append(index)
         data_url = f"http://{args.elastic_server}:9200/_bulk"
-        segment_list = sorted_by_index[key]
+        segment_list = sorted_by_index[index]
         elastic_index = {'index': {'_index': f'{index}', '_type': 'nodes'}}
         payload_list = [elastic_index]
         for segment in segment_list:
+            segment.pop('_index', None)
             payload_list.append(segment)
             payload_list.append(elastic_index)
         payload_list.pop()
@@ -102,6 +85,10 @@ def main():
     parser.add_argument("-l", "--sample", dest="sample", help="sample poll time", required=False)
     parser.add_argument("-c", "--path", dest="path", help="path for gnmi support", required=False)
     args = parser.parse_args()
+    if args.sub and args.gnmi:
+        parser.error("Only supply a subscription or gnmi path, not both")
+    if args.sub is None and args.gnmi is False:
+        parser.error("Need to supply gnmi flag or a subscription")
     if args.gnmi and (args.sample is None or args.path is None):
         parser.error("gnmi requires a sample time and a path")
 
@@ -166,20 +153,27 @@ def main():
     batch_list = []
     while not client.isconnected() and client.is_alive():
         pass
+    if args.gnmi:
+        node = get_host_node(args)
+        if node is None:
+            main_logger.logger.error("Can't get node name")
+            log_listener.queue.put(None)
+            log_listener.join()
+            exit(0)
+        args.node = node
     with Pool() as pool:
         while client.is_alive():
             try:
                 data = data_queue.get(timeout=1)
                 if data is not None:
                     batch_list.append(data)
-                    print(len(batch_list))
                     if len(batch_list) >= int(args.batch_size):
                         result = pool.apply_async(elasticsearch_upload,
                                                   (batch_list, args, elastic_lock, indices, log_name,))
                         # print(result.get())
                         # if not result.get():
                         #    break
-                        # elasticsearch_upload(batch_list, args, elastic_lock, indecies, log_name)
+                        #elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
                         del batch_list
                         batch_list = []
             except Empty:
@@ -191,7 +185,7 @@ def main():
                                               (batch_list, args, elastic_lock, indices, log_name,))
                     # if not result.get():
                     #    break
-                    # elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
+                    #elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
                     del batch_list
                     batch_list = []
 
