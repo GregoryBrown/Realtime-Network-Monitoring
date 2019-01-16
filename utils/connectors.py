@@ -44,7 +44,6 @@ class DialInClient(Process):
                 sub_list = SubscriptionList(subscription=[sub], mode=0, encoding=2)
                 sub_request = SubscribeRequest(subscribe=sub_list)
                 req_iterator = self.sub_to_path(sub_request)
-                got_sync = False
                 for response in self._gnmi_stub.Subscribe(req_iterator, metadata=self._metadata):
                     if response.sync_response:
                         self.log.info("Got all values")
@@ -80,13 +79,11 @@ class DialInClient(Process):
     def isconnected(self):
         return self._connected.value
 
-
     def run(self):
         self.connect()
         if self.isconnected():
             self.subscribe()
             
-
 
 class TLSDialInClient(DialInClient):
     def __init__(self, host, port, data_queue, log_name, sub_args, user, password, connected, pem, timeout=100000000,

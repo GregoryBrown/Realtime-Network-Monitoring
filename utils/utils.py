@@ -5,9 +5,7 @@ import datetime
 import grpc
 sys.path.append("../")
 
-from utils.exceptions import FormatDataError
-from urllib.parse import unquote
-from copy import deepcopy
+
 from collections import defaultdict
 from py_protos.gnmi_pb2 import PathElem, Path
 from .multi_process_logging import MultiProcessQueueLoggingListner, MultiProcessQueueLogger
@@ -63,7 +61,6 @@ def create_gnmi_path(path):
     return Path(elem=path_elements)
     
 
-
 def process_batch_list(batch_list, args):
     if args.gnmi:
         return process_gnmi(batch_list, args.node)
@@ -81,11 +78,11 @@ def process_gnmi(batch_list, node):
         timestamp = header["timestamp"]
         index, keys, encode_path = process_header(header["prefix"])
         content = parse_gnmi(header["update"])
-        formatted_json_segments.append({'_index': index, 'keys':keys, 'content':content, 'encode_path':encode_path, 'node': node, 'timestamp': int(timestamp)/1000000})
+        formatted_json_segments.append({'_index': index, 'keys': keys, 'content': content, 'encode_path': encode_path,
+                                        'node': node, 'timestamp': int(timestamp)/1000000})
 
     return formatted_json_segments
-        
-        
+
 
 def process_cisco_encoding(batch_list):
     json_segments = []
@@ -110,7 +107,7 @@ def parse_cisco_encoding(telemetry_json):
             output["node"] = telemetry_json["nodeIdStr"]
             output['timestamp'] = data["timestamp"]
             output['_index'] = telemetry_json["encodingPath"].replace('/', '-').lower() + '-' + get_date()
-            rc_list.append(json.loads(json.dumps((output))))
+            rc_list.append(json.loads(json.dumps(output)))
         return rc_list
 
 
@@ -134,6 +131,7 @@ def _parse_cisco_data(data):
                     data_dict[item["name"]] = rc_value
     return data_dict
 
+
 def get_value(val_dict):
     for key, value in val_dict.items():
         if 'string' in key:
@@ -146,6 +144,7 @@ def get_value(val_dict):
             return int(value)
         else:
             return value
+
 
 def parse_gnmi(update):
     rc_dict = [{}]
@@ -167,7 +166,6 @@ def parse_gnmi(update):
     return rc_dict
 
 
-
 def process_header(header):
     index = header["origin"].lower()
     keys = []
@@ -183,7 +181,7 @@ def process_header(header):
         rc_keys.update(elem_dict)
     
     encode_path = header["origin"] + ":" + "/".join(elem_str_list)
-    index = index + ":" +  '-'.join(elem_str_list) + '-gnmi-'+ get_date()
+    index = index + ":" + '-'.join(elem_str_list) + '-gnmi-' + get_date()
     return index, [rc_keys], encode_path
 
 
@@ -193,9 +191,6 @@ def get_date():
     day = f"{now.day:02d}"
     return '.'.join([str(now.year), month, day])
     
-
-
-
 
 def get_host_node(args):
     from py_protos.ems_grpc_pb2_grpc import gRPCConfigOperStub
@@ -219,8 +214,6 @@ def get_host_node(args):
     if err:
         return None
     return json.loads(objects)["Cisco-IOS-XR-shellutil-cfg:host-names"]["host-name"]
-
-        
 
 
 '''

@@ -3,7 +3,6 @@ import json
 import logging
 import traceback
 sys.path.append("../")
-from utils.exceptions import FormatDataError
 from utils.connectors import DialInClient, TLSDialInClient
 from argparse import ArgumentParser
 from multiprocessing import Pool, Manager, Queue, Value
@@ -11,8 +10,6 @@ from queue import Empty
 from requests import request
 from utils.utils import create_gnmi_path, init_logging, populate_index_list, process_batch_list, get_host_node
 from ctypes import c_bool
-
-
 
 
 def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
@@ -185,7 +182,7 @@ def main():
                                               (batch_list, args, elastic_lock, indices, log_name,))
                     # if not result.get():
                     #    break
-                    #elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
+                    # elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
                     del batch_list
                     batch_list = []
 
