@@ -93,7 +93,7 @@ def process_cisco_encoding(batch_list):
         json_segments.append(json.loads(json_format.MessageToJson(telemetry_pb)))
     for segment in json_segments:
         formatted_json_segments.append(parse_cisco_encoding(segment))
-
+    formatted_json_segments = [x for x in formatted_json_segments if x is not None]
     formatted_json_segments = [item for sublist in formatted_json_segments for item in sublist]
     return formatted_json_segments
 
@@ -102,12 +102,13 @@ def parse_cisco_encoding(telemetry_json):
     if "dataGpbkv" in telemetry_json:
         rc_list = []
         for data in telemetry_json["dataGpbkv"]:
-            output = _parse_cisco_data(data["fields"])
-            output["encode_path"] = telemetry_json["encodingPath"]
-            output["node"] = telemetry_json["nodeIdStr"]
-            output['timestamp'] = data["timestamp"]
-            output['_index'] = telemetry_json["encodingPath"].replace('/', '-').lower() + '-' + get_date()
-            rc_list.append(json.loads(json.dumps(output)))
+            if "fields" in data:
+                output = _parse_cisco_data(data["fields"])
+                output["encode_path"] = telemetry_json["encodingPath"]
+                output["node"] = telemetry_json["nodeIdStr"]
+                output['timestamp'] = data["timestamp"]
+                output['_index'] = telemetry_json["encodingPath"].replace('/', '-').lower() + '-' + get_date()
+                rc_list.append(json.loads(json.dumps(output)))
         return rc_list
 
 
