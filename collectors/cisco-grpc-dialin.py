@@ -150,19 +150,25 @@ def main():
     batch_list = []
     while not client.isconnected() and client.is_alive():
         pass
+    if not client.isconnected():
+        client.join()
+        log_listener.queue.put(None)
+        log_listener.join()
+        exit(1)
     if args.gnmi:
         node = get_host_node(args)
         if node is None:
             main_logger.logger.error("Can't get node name")
             log_listener.queue.put(None)
             log_listener.join()
-            exit(0)
+            exit(1)
         args.node = node
     with Pool() as pool:
-        while client.is_alive():
+        while client.isconnected():
             try:
                 data = data_queue.get(timeout=1)
                 if data is not None:
+                    print(data)
                     batch_list.append(data)
                     if len(batch_list) >= int(args.batch_size):
                         result = pool.apply_async(elasticsearch_upload,

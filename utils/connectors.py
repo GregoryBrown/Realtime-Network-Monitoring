@@ -74,7 +74,8 @@ class DialInClient(Process):
         except grpc.FutureTimeoutError as e:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
             self.log.error(e)
-            exit(0)
+            self.queue.put_nowait(None)
+            self._connected.value = False
 
     def isconnected(self):
         return self._connected.value
@@ -102,4 +103,5 @@ class TLSDialInClient(DialInClient):
         except grpc.FutureTimeoutError as e:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
             self.log.error(e)
-            exit(0)
+            self.queue.put_nowait(None)
+            self._connected.value = False
