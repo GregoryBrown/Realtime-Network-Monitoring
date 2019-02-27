@@ -12,7 +12,7 @@ from utils.utils import create_gnmi_path, init_logging, populate_index_list, pro
 from ctypes import c_bool
 
 
-def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
+def elasticsearch_upload(batch_list, args, lock, log_name):
     sorted_by_index = {}
     process_logger = logging.getLogger(log_name)
     try:
@@ -31,9 +31,16 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
     # Bulk upload each index to elasticsearch
     for index in sorted_by_index.keys():
         index_url = f"http://{args.elastic_server}:9200/{index}"
+        index_list = populate_index_list(args.elastic_server, process_logger)
+        if index_list == False:
+            process_logger.error("Unable to populate index list")
+            return False
         if index not in index_list:
             with lock:
                 index_list = populate_index_list(args.elastic_server, process_logger)
+                if index_list == False:
+                    process_logger.error("Unable to repopulate index list")
+                    return False
                 if index not in index_list:
                     process_logger.info('Acciqured lock to put index in elasticsearch')
                     headers = {'Content-Type': "application/json"}
@@ -142,11 +149,6 @@ def main():
         else:
             client = DialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password,
                                   connected)
-    indices = populate_index_list(args.elastic_server, main_logger)
-    if indices is False:
-        log_listener.queue.put(None)
-        log_listener.join()
-        exit(0)
     client.start()
     batch_list = []
     while not client.isconnected() and client.is_alive():
@@ -164,33 +166,33 @@ def main():
             log_listener.join()
             exit(1)
         args.node = node
-    with Pool() as pool:
-        while client.isconnected():
-            try:
-                data = data_queue.get(timeout=1)
-                if data is not None:
-                    batch_list.append(data)
-                    if len(batch_list) >= int(args.batch_size):
-                        result = pool.apply_async(elasticsearch_upload,
-                                                  (batch_list, args, elastic_lock, indices, log_name,))
-                        # print(result.get())
-                        # if not result.get():
-                        #    break
-                        #elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
-                        del batch_list
-                        batch_list = []
-            except Empty:
-                if not len(batch_list) == 0:
-                    main_logger.logger.info(
-                        f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size "
-                        f"by {len(batch_list)}")
-                    result = pool.apply_async(elasticsearch_upload,
-                                              (batch_list, args, elastic_lock, indices, log_name,))
+    #with Pool() as pool:
+    while client.isconnected():
+        try:
+            data = data_queue.get(timeout=1)
+            if data is not None:
+                batch_list.append(data)
+                if len(batch_list) >= int(args.batch_size):
+                    #result = pool.apply_async(elasticsearch_upload,
+                    #(batch_list, args, elastic_lock, indices, log_name,))
+                    # print(result.get())
                     # if not result.get():
                     #    break
-                    # elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
+                    elasticsearch_upload(batch_list, args, elastic_lock, log_name)
                     del batch_list
                     batch_list = []
+        except Empty:
+            if not len(batch_list) == 0:
+                main_logger.logger.info(
+                    f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size "
+                    f"by {len(batch_list)}")
+                #result = pool.apply_async(elasticsearch_upload,
+                #                          (batch_list, args, elastic_lock, indices, log_name,))
+                # if not result.get():
+                #    break
+                elasticsearch_upload(batch_list, args, elastic_lock, log_name)
+                del batch_list
+                batch_list = []
 
     client.join()
     log_listener.queue.put(None)
