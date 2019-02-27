@@ -168,7 +168,6 @@ def main():
             try:
                 data = data_queue.get(timeout=1)
                 if data is not None:
-                    print(data)
                     batch_list.append(data)
                     if len(batch_list) >= int(args.batch_size):
                         result = pool.apply_async(elasticsearch_upload,
