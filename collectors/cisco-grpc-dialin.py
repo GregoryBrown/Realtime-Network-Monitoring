@@ -166,33 +166,33 @@ def main():
             log_listener.join()
             exit(1)
         args.node = node
-    #with Pool() as pool:
-    while client.isconnected():
-        try:
-            data = data_queue.get(timeout=1)
-            if data is not None:
-                batch_list.append(data)
-                if len(batch_list) >= int(args.batch_size):
-                    #result = pool.apply_async(elasticsearch_upload,
-                    #(batch_list, args, elastic_lock, indices, log_name,))
-                    # print(result.get())
+    with Pool() as pool:
+        while client.isconnected():
+            try:
+                data = data_queue.get(timeout=1)
+                if data is not None:
+                    batch_list.append(data)
+                    if len(batch_list) >= int(args.batch_size):
+                        result = pool.apply_async(elasticsearch_upload,
+                                                  (batch_list, args, elastic_lock, log_name,))
+                        # print(result.get())
+                        # if not result.get():
+                        #    break
+                        #elasticsearch_upload(batch_list, args, elastic_lock, log_name)
+                        del batch_list
+                        batch_list = []
+            except Empty:
+                if not len(batch_list) == 0:
+                    main_logger.logger.info(
+                        f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size "
+                        f"by {len(batch_list)}")
+                    result = pool.apply_async(elasticsearch_upload,
+                                              (batch_list, args, elastic_lock, log_name,))
                     # if not result.get():
                     #    break
-                    elasticsearch_upload(batch_list, args, elastic_lock, log_name)
+                    #elasticsearch_upload(batch_list, args, elastic_lock, log_name)
                     del batch_list
                     batch_list = []
-        except Empty:
-            if not len(batch_list) == 0:
-                main_logger.logger.info(
-                    f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size "
-                    f"by {len(batch_list)}")
-                #result = pool.apply_async(elasticsearch_upload,
-                #                          (batch_list, args, elastic_lock, indices, log_name,))
-                # if not result.get():
-                #    break
-                elasticsearch_upload(batch_list, args, elastic_lock, log_name)
-                del batch_list
-                batch_list = []
 
     client.join()
     log_listener.queue.put(None)
