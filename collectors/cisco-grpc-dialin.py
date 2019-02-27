@@ -33,6 +33,7 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
         index_url = f"http://{args.elastic_server}:9200/{index}"
         if index not in index_list:
             with lock:
+                index_list = populate_index_list(args.elastic_server, process_logger)
                 if index not in index_list:
                     process_logger.info('Acciqured lock to put index in elasticsearch')
                     headers = {'Content-Type': "application/json"}
