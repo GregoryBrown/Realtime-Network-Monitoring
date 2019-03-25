@@ -13,7 +13,7 @@ from utils.configurationparser import ConfigurationParser
 from ctypes import c_bool
 
 
-def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
+def elasticsearch_upload(batch_list, args, lock, log_name):
     sorted_by_index = {}
     process_logger = logging.getLogger(log_name)
     try:
@@ -32,10 +32,18 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
     # Bulk upload each index to elasticsearch
     for index in sorted_by_index.keys():
         index_url = f"http://{args.elastic_server}:9200/{index}"
+        index_list = populate_index_list(args.elastic_server, process_logger)
+        if index_list == False:
+            process_logger.error("Unable to populate index list")
+            return False
         if index not in index_list:
             with lock:
-                #check if the date has changed so need to repopulate the index_list
+
                 index_list = populate_index_list(args.elastic_server, process_logger)
+                if index_list == False:
+                    process_logger.error("Unable to repopulate index list")
+                    return False
+
                 if index not in index_list:
                     process_logger.info('Acciqured lock to put index in elasticsearch')
                     headers = {'Content-Type': "application/json"}
@@ -104,6 +112,7 @@ def main():
         log_listener.queue.put(None)
         log_listener.join()
         exit(0)
+
     client.start()
     batch_list = []
     while not client.isconnected() and client.is_alive():
@@ -126,15 +135,14 @@ def main():
             try:
                 data = data_queue.get(timeout=1)
                 if data is not None:
-                    print(data)
                     batch_list.append(data)
                     if len(batch_list) >= int(args.batch_size):
                         result = pool.apply_async(elasticsearch_upload,
-                                                  (batch_list, args, elastic_lock, indices, log_name,))
+                                                  (batch_list, args, elastic_lock, log_name,))
                         # print(result.get())
                         # if not result.get():
                         #    break
-                        #elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
+                        #elasticsearch_upload(batch_list, args, elastic_lock, log_name)
                         del batch_list
                         batch_list = []
             except Empty:
@@ -143,10 +151,10 @@ def main():
                         f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size "
                         f"by {len(batch_list)}")
                     result = pool.apply_async(elasticsearch_upload,
-                                              (batch_list, args, elastic_lock, indices, log_name,))
+                                              (batch_list, args, elastic_lock, log_name,))
                     # if not result.get():
                     #    break
-                    # elasticsearch_upload(batch_list, args, elastic_lock, indices, log_name)
+                    #elasticsearch_upload(batch_list, args, elastic_lock, log_name)
                     del batch_list
                     batch_list = []
 

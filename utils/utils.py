@@ -22,22 +22,22 @@ def init_logging(name, queue):
     return log_listener, main_logger
 
 
-def populate_index_list(elastic_server, main_logger):
-    sensor_list = Manager().list()
+def populate_index_list(elastic_server, logger):
+    indices = []
     get_all_sensors_url = f"http://{elastic_server}:9200/*"
     try:
         get_all_sensors_response = request("GET", get_all_sensors_url)
         if not get_all_sensors_response.status_code == 200:
-            main_logger.logger.error("Response status wasn't 200")
-            main_logger.logger.error(get_all_sensors_response.json())
+            logger.error("Response status wasn't 200")
+            logger.error(get_all_sensors_response.json())
             return False
     except Exception as e:
-        main_logger.logger.error(e)
+        logger.error(e)
         return False
     for key in get_all_sensors_response.json():
         if not key.startswith('.'):
-            sensor_list.append(key)
-    return sensor_list
+            indices.append(key)
+    return indices
 
 
 def create_gnmi_path(path):
