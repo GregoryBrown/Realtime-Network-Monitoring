@@ -9,6 +9,7 @@ from multiprocessing import Pool, Manager, Queue, Value
 from queue import Empty
 from requests import request
 from utils.utils import create_gnmi_path, init_logging, populate_index_list, process_batch_list, get_host_node
+from utils.configurationparser import ConfigurationParser
 from ctypes import c_bool
 
 
@@ -33,6 +34,8 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
         index_url = f"http://{args.elastic_server}:9200/{index}"
         if index not in index_list:
             with lock:
+                #check if the date has changed so need to repopulate the index_list
+                index_list = populate_index_list(args.elastic_server, process_logger)
                 if index not in index_list:
                     process_logger.info('Acciqured lock to put index in elasticsearch')
                     headers = {'Content-Type': "application/json"}
@@ -69,78 +72,33 @@ def elasticsearch_upload(batch_list, args, lock, index_list, log_name):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("-s", "--subscription", dest="sub", help="Subscription name", required=False)
-    parser.add_argument("-u", "--username", dest="username", help="Username", required=True)
-    parser.add_argument("-p", "--password", dest="password", help="Password", required=True)
-    parser.add_argument("-a", "--host", dest="host", help="host", required=True)
-    parser.add_argument("-r", "--port", dest="port", help="port", required=True)
-    parser.add_argument("-b", "--batch_size", dest="batch_size", help="Batch size", required=True)
-    parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server", required=True)
-    parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", required=False, action='store_true')
-    parser.add_argument("-m", "--pem", dest="pem", help="pem file", required=False)
-    parser.add_argument("-g", "--gnmi", dest="gnmi", help="gnmi encoding", required=False, action='store_true')
-    parser.add_argument("-l", "--sample", dest="sample", help="sample poll time", required=False)
-    parser.add_argument("-c", "--path", dest="path", help="path for gnmi support", required=False)
+    parser.add_argument("-s", "--subscription", dest="sub", help="Subscription name")
+    parser.add_argument("-u", "--username", dest="username", help="Username")
+    parser.add_argument("-p", "--password", dest="password", help="Password")
+    parser.add_argument("-a", "--host", dest="host", help="host")
+    parser.add_argument("-r", "--port", dest="port", help="port")
+    parser.add_argument("-b", "--batch_size", dest="batch_size", help="Batch size")
+    parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server")
+    parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", action='store_true')
+    parser.add_argument("-m", "--pem", dest="pem", help="pem file")
+    parser.add_argument("-g", "--gnmi", dest="gnmi", help="gnmi encoding", action='store_true')
+    parser.add_argument("-l", "--sample", dest="sample", help="sample poll time")
+    parser.add_argument("-i", "--path", dest="path", help="path for gnmi support")
+    parser.add_argument("-c", "--config", dest="config", help="Name of the configuration file")
     args = parser.parse_args()
-    if args.sub and args.gnmi:
-        parser.error("Only supply a subscription or gnmi path, not both")
-    if args.sub is None and args.gnmi is False:
-        parser.error("Need to supply gnmi flag or a subscription")
-    if args.gnmi and (args.sample is None or args.path is None):
-        parser.error("gnmi requires a sample time and a path")
-
-    if args.tls and args.pem is None:
-        parser.error("TLS requires a pem file")
-
+    if args.config == None:
+        parser.error("Need to supply a config file")
+        exit(1)
+    #create config class object
+    config_parser  = ConfigurationParser(args.config)
+    config_parser.parse_arguments_and_config()
+    clients = config_parser.client_configurations
     log_queue = Queue()
-    data_queue = Queue()
+    data_queue = Manager().Queue()
     elastic_lock = Manager().Lock()
     connected = Value(c_bool, False)
-    if args.gnmi:
-        log_path = "-".join(args.path.split('/')[:6])
-        log_path = log_path.replace('[', '-').replace(']', '-')
-        log_name = f"{log_path}-{args.host.replace('[', '-').replace(']', '-')}-gnmi.log"
-    else:
-        log_name = f"{args.sub}-{args.host}-grpc.log"
     log_listener, main_logger = init_logging(log_name, log_queue)
-    if args.tls:
-        if args.pem:
-            try:
-                with open(args.pem, "rb") as fp:
-                    pem = fp.read()
-                if args.gnmi:
-                    path = create_gnmi_path(args.path)
-                    sample = int(args.sample) * 1000000000
-                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username,
-                                             args.password, connected, pem, gnmi=True, path=path, sample=sample)
-                else:
-                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username,
-                                             args.password, connected, pem)
-            except Exception as e:
-                main_logger.logger.error(e)
-                log_listener.queue.put(None)
-                log_listener.join()
-                exit(0)
-        else:
-            main_logger.logger.error("Need to have a pem file")
-            log_listener.queue.put(None)
-            log_listener.join()
-            exit(0)
-    else:
-        if args.gnmi:
-            try:
-                path = create_gnmi_path(args.path)
-                sample = int(args.sample) * 1000000000
-            except Exception as e:
-                main_logger.logger.error(e)
-                log_listener.queue.put(None)
-                log_listener.join()
-                exit(0)
-            client = DialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password,
-                                  connected, gnmi=True, path=path, sample=sample)
-        else:
-            client = DialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username, args.password,
-                                  connected)
+    
     indices = populate_index_list(args.elastic_server, main_logger)
     if indices is False:
         log_listener.queue.put(None)

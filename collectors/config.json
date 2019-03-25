@@ -1,0 +1,40 @@
+{
+    "routers": [{
+	"router-name": "NCS5501-SE-P-2-1",
+	"Address": "52.52.52.1",
+	"Username": "root",
+	"Password": "lablab",
+	"PemFile": "NCS5501-SE-P-2.pem",
+	"TLS": "True",
+	"Port": 57400
+    }, {
+	"router-name": "NCS5501-SE-P-2-2",
+	"Address": "52.52.52.1",
+	"Username": "root",
+	"Password": "lablab",
+	"Port": 57400
+    }],
+    "cisco-ems": [{
+	"router-name": "NCS5501-SE-P-2-1",
+	"Subscriptions": ["memory", "interfaces"]
+    }, {
+	"router-name": "ALL",
+	"Subscriptions": ["bgp"]
+    }],
+    "gnmi": [{
+	"router-name": "ALL",
+	"Sensors": ["Cisco-IOS-XR-ethernet-lldp-oper:lldp/nodes/node/neighbors/devices/device/lldp-neighbor", "openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor", "Cisco-IOS-XR-fretta-bcm-dpa-npu-stats-oper:dpa/stats/nodes/node/asic-statistics/asic-statistics-for-npu-ids/asic-statistics-for-npu-id"],
+	"Sample-rate": 5
+    }],
+    "ES": [{
+	"router-name": "ALL",
+	"ES-Port": 9200,
+	"DatabaseIP": ["1.1.1.10"],
+	"BatchSize": 50
+    }, {
+        "router-name": "NCS5501-SE-P-2-2",
+        "ES-Port": 9200,
+        "DatabaseIP": ["1.1.1.11"],
+        "BatchSize": 50
+    }]
+}

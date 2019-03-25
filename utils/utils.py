@@ -72,7 +72,7 @@ def process_gnmi(batch_list, node):
     json_segments = []
     formatted_json_segments = []
     for batch in batch_list:
-        json_segments.append(json.loads(batch))
+        json_segments.append(json.loads(json_format.MessageToJson(batch)))
     for segment in json_segments:
         header = segment["update"]
         timestamp = header["timestamp"]
@@ -216,6 +216,45 @@ def get_host_node(args):
         return None
     return json.loads(objects)["Cisco-IOS-XR-shellutil-cfg:host-names"]["host-name"]
 
+
+
+'''
+    if args.sub and args.gnmi:
+        parser.error("Only supply a subscription or gnmi path, not both")
+    if args.sub is None and args.gnmi is False:
+        parser.error("Need to supply gnmi flag or a subscription")
+    if args.gnmi and (args.sample is None or args.path is None):
+        parser.error("gnmi requires a sample time and a path")
+
+    if args.tls and args.pem is None:
+        parser.error("TLS requires a pem file")
+
+    log_queue = Queue()
+    data_queue = Queue()
+    elastic_lock = Manager().Lock()
+    connected = Value(c_bool, False)
+    if args.gnmi:
+        log_path = "-".join(args.path.split('/')[:6])
+        log_path = log_path.replace('[', '-').replace(']', '-')
+        log_name = f"{log_path}-{args.host.replace('[', '-').replace(']', '-')}-gnmi.log"
+    else:
+        log_name = f"{args.sub}-{args.host}-grpc.log"
+    log_listener, main_logger = init_logging(log_name, log_queue)
+    if args.tls:
+        if args.pem:
+            try:
+                with open(args.pem, "rb") as fp:
+                    pem = fp.read()
+                if args.gnmi:
+                    path = create_gnmi_path(args.path)
+                    sample = int(args.sample) * 1000000000
+                    client = TLSDialInClient(args.host, args.port, data_queue, log_name, args.sub, args.username,
+                                             args.password, connected, pem, gnmi=True, path=path, sample=sample)
+                else:
+
+
+
+'''
 
 '''
 def json_tree_traversal(tree):

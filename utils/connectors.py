@@ -11,7 +11,6 @@ from py_protos.gnmi_pb2 import SubscribeRequest, SubscriptionList, Subscription
 from multiprocessing import Process
 from google.protobuf import json_format
 
-
 class DialInClient(Process):
     def __init__(self, host, port, data_queue, log_name, sub_args, user, password, connected, timeout=100000000,
                  name='DialInClient', gnmi=False, path=None, sample=None):
@@ -49,7 +48,7 @@ class DialInClient(Process):
                         self.log.info("Got all values")
                     else:
                         self.queue.put_nowait(json_format.MessageToJson(response))
-
+                        
             else:
                 self._cisco_ems_stub = gRPCConfigOperStub(self._channel)
                 sub_args = CreateSubsArgs(ReqId=1, encode=3, subidstr=self.sub_id)
@@ -60,6 +59,8 @@ class DialInClient(Process):
                         self.queue.put_nowait(None)
                         self._connected.value = False
                     else:
+                        print(type(segment))
+                        print(type(segment.data))
                         self.queue.put_nowait(segment.data)
         except Exception as e:
             self.log.error(e)
