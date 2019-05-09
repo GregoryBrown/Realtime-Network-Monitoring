@@ -3,9 +3,9 @@ chardet==3.0.4
 Click==7.0
 elasticsearch==7.0.0
 Flask==1.0.2
-googleapis-common-protos==1.5.9
-grpcio==1.20.0
-grpcio-tools==1.20.0
+googleapis-common-protos==1.5.10
+grpcio==1.20.1
+grpcio-tools==1.20.1
 idna==2.8
 itsdangerous==1.1.0
 Jinja2==2.10.1
