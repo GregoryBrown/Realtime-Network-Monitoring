@@ -79,7 +79,7 @@ def process_gnmi(batch_list, node):
         index, keys, encode_path = process_header(header["prefix"])
         content = parse_gnmi(header["update"])
         formatted_json_segments.append({'_index': index, 'keys': keys, 'content': content, 'encode_path': encode_path,
-                                        'node': node, 'timestamp': int(timestamp)/1000000})
+                                        'host': node, 'timestamp': int(timestamp)/1000000})
 
     return formatted_json_segments
 
@@ -87,15 +87,19 @@ def process_gnmi(batch_list, node):
 def process_cisco_encoding(batch_list):
     json_segments = []
     formatted_json_segments = []
-    for segment in batch_list:
-        telemetry_pb = Telemetry()
-        telemetry_pb.ParseFromString(segment)
-        json_segments.append(json.loads(json_format.MessageToJson(telemetry_pb)))
-    for segment in json_segments:
-        formatted_json_segments.append(parse_cisco_encoding(segment))
-    formatted_json_segments = [x for x in formatted_json_segments if x is not None]
-    formatted_json_segments = [item for sublist in formatted_json_segments for item in sublist]
-    return formatted_json_segments
+    try:
+        for segment in batch_list:
+            telemetry_pb = Telemetry()
+            telemetry_pb.ParseFromString(segment)
+            json_segments.append(json.loads(json_format.MessageToJson(telemetry_pb)))
+        for segment in json_segments:
+            formatted_json_segments.append(parse_cisco_encoding(segment))
+        formatted_json_segments = [x for x in formatted_json_segments if x is not None]
+        formatted_json_segments = [item for sublist in formatted_json_segments for item in sublist]
+        return formatted_json_segments
+    except Exception as e:
+        print(segment)
+        
 
 
 def parse_cisco_encoding(telemetry_json):
@@ -105,32 +109,38 @@ def parse_cisco_encoding(telemetry_json):
             if "fields" in data:
                 output = _parse_cisco_data(data["fields"])
                 output["encode_path"] = telemetry_json["encodingPath"]
-                output["node"] = telemetry_json["nodeIdStr"]
-                output['timestamp'] = data["timestamp"]
-                output['_index'] = telemetry_json["encodingPath"].replace('/', '-').lower() + '-' + get_date()
+                output["host"] = telemetry_json["nodeIdStr"]
+                output['@timestamp'] = data["timestamp"]
+                output['_index'] = telemetry_json["encodingPath"].replace('/', '-').lower().replace(':', '-') + '-' + get_date()
                 rc_list.append(json.loads(json.dumps(output)))
         return rc_list
 
 
 def _parse_cisco_data(data):
-    data_dict = defaultdict(list)
-    for item in data:
-        if "fields"in item:
-            data_dict[item["name"]].append(_parse_cisco_data(item["fields"]))
-        else:
-            for key, value in item.items():
-                if 'Value' in key:
-                    if 'uint' in key:
-                        # Check if is an int, and if it is a BIG INTEGER make string so it can upload to ES
-                        rc_value = int(value)
-                        if rc_value > sys.maxsize:
-                            rc_value = str(rc_value)
-                    elif 'String' in key:
-                        rc_value = str(value)
-                    else:
-                        rc_value = value 
-                    data_dict[item["name"]] = rc_value
-    return data_dict
+    try:
+        data_dict = defaultdict(list)
+        for item in data:
+            if "fields"in item:
+                data_dict[item["name"]].append(_parse_cisco_data(item["fields"]))
+            else:
+                for key, value in item.items():
+                    if 'Value' in key:
+                        if 'uint' in key:
+                            # Check if is an int, and if it is a BIG INTEGER make string so it can upload to ES
+                            rc_value = int(value)
+                            if rc_value > sys.maxsize:
+                                rc_value = str(rc_value)
+                        elif 'String' in key:
+                            rc_value = str(value)
+                        else:
+                            rc_value = value 
+                        data_dict[item["name"]] = rc_value
+        return data_dict
+    except Exception as e:
+        print(item)
+        print(e)
+        print("=================")
+
 
 
 def get_value(val_dict):
@@ -182,7 +192,7 @@ def process_header(header):
         rc_keys.update(elem_dict)
     
     encode_path = header["origin"] + ":" + "/".join(elem_str_list)
-    index = index + ":" + '-'.join(elem_str_list) + '-gnmi-' + get_date()
+    index = index + "/" + '-'.join(elem_str_list) + '-gnmi-' + get_date()
     return index, [rc_keys], encode_path
 
 
