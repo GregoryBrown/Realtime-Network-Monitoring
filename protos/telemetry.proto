@@ -1,4 +1,5 @@
 /* ----------------------------------------------------------------------------
+ * telemetry_bis.proto - Telemetry protobuf definitions
  *
  * August 2016
  *
@@ -52,8 +53,8 @@ message Telemetry {
   // at the point described by the encoding_path.
   string   encoding_path = 6;
   //
-  // model_version is not currently produced in IOS-XR
-  // string   model_version = 7;
+  // model_revision
+  string   model_version = 7;
   //
   // collection_id identifies messages belonging to a collection round.
   // Multiple message may be generated from a collection round.
@@ -131,6 +132,8 @@ message TelemetryField {
   // The Yang model may include nesting (e.g hierarchy of containers). The
   // next level of nesting, if present, is encoded, starting from fields.
   repeated TelemetryField fields = 15;
+  // set only for delete event
+  bool           delete = 16;
 }
 
 // TelemetryGPBTable contains a repeated number of TelemetryRowGPB,
