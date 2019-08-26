@@ -3,23 +3,56 @@ import re
 import json
 import datetime
 import grpc
-sys.path.append("../")
-
+import logging
+import os
 
 from collections import defaultdict
-from py_protos.gnmi_pb2 import PathElem, Path
-from .multi_process_logging import MultiProcessQueueLoggingListner, MultiProcessQueueLogger
+from protos.gnmi_pb2 import PathElem, Path
+from utils.multi_process_logging import MultiProcessQueueLoggingListner, MultiProcessQueueLogger
 from multiprocessing import Manager
 from requests import request
-from py_protos.telemetry_pb2 import Telemetry
+from protos.telemetry_pb2 import Telemetry
 from google.protobuf import json_format
-
+from logging.handlers import RotatingFileHandler
 
 def init_logging(name, queue):
     log_listener = MultiProcessQueueLoggingListner(name, queue)
     log_listener.start()
     main_logger = MultiProcessQueueLogger(name, queue)
     return log_listener, main_logger
+
+def mkdir_p(path):
+    """http://stackoverflow.com/a/600612/190597 (tzot)"""
+    try:
+        os.makedirs(path, exist_ok=True)  
+    except TypeError as e:
+        print(e)
+        raise e
+        
+
+    
+class RTNMRotatingFileHandler(RotatingFileHandler):
+    def __init__(self, filename, mode='a', maxBytes=0, backupCount=0, encoding=None, delay=False):
+        try:
+            mkdir_p(os.path.dirname(filename))
+            RotatingFileHandler.__init__(self, filename, maxBytes=maxBytes, backupCount=backupCount)
+        except TypeError as e:
+            print(e)
+            print("Can't initialize logs")
+            exit(0)
+
+def init_dial_in_logs(name, path):
+    for log_name in [name, f"ES-{name}", f"Conn-{name}", f"Worker-{name}"]:
+        logger = logging.getLogger(log_name)
+        logger.setLevel(logging.DEBUG)
+        file_handler = RTNMRotatingFileHandler(f"{path}/{log_name}", maxBytes=536870912, backupCount=2)
+        screen_handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+        file_handler.setFormatter(formatter)
+        screen_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.addHandler(screen_handler)
+        yield logger
 
 
 def populate_index_list(elastic_server, logger):
@@ -98,7 +131,8 @@ def process_cisco_encoding(batch_list):
         formatted_json_segments = [item for sublist in formatted_json_segments for item in sublist]
         return formatted_json_segments
     except Exception as e:
-        print(segment)
+        return None
+        
         
 
 
