@@ -4,8 +4,10 @@ The goal of the application is to be a unified collection system of all the diff
 # Requirements
 * Python 3.7 or higher 
 * Multi-Core machine
+* ElasticSearch 7.X or greater
 
 # Installation 
 1. python3.7 -m venv venv 
 2. source venv/bin/activate 
 3. pip install -r requirements.txt 
+
