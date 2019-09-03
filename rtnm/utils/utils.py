@@ -22,7 +22,6 @@ def init_logging(name, queue):
     return log_listener, main_logger
 
 def mkdir_p(path):
-    """http://stackoverflow.com/a/600612/190597 (tzot)"""
     try:
         os.makedirs(path, exist_ok=True)  
     except TypeError as e:
@@ -54,7 +53,7 @@ def init_dial_in_logs(name, path):
         logger.addHandler(screen_handler)
         yield logger
 
-
+'''
 def populate_index_list(elastic_server, logger):
     indices = []
     get_all_sensors_url = f"http://{elastic_server}:9200/*"
@@ -71,7 +70,7 @@ def populate_index_list(elastic_server, logger):
         if not key.startswith('.'):
             indices.append(key)
     return indices
-
+'''
 
 def create_gnmi_path(path):
     path_elements = []
@@ -94,8 +93,8 @@ def create_gnmi_path(path):
     return Path(elem=path_elements)
     
 
-def process_batch_list(batch_list, args):
-    if args.gnmi:
+def process_batch_list(batch_list, gnmi):
+    if gnmi:
         return process_gnmi(batch_list, args.node)
     else:
         return process_cisco_encoding(batch_list)

@@ -15,6 +15,10 @@ from tornado.httpclient import AsyncHTTPClient, HTTPError, HTTPRequest
 from tornado.locks import Lock
 from tornado.ioloop import IOLoop
 from struct import Struct, unpack
+from tornado.netutil import bind_sockets
+from tornado.process import fork_processes, task_id
+from multiprocessing import current_process
+
 
 class Error(Exception):
     pass
@@ -48,8 +52,8 @@ class TelemetryTCPDialOutServer(TCPServer):
         super().__init__()
         self.elastic_server = elasticsearch_server
         self.lock = Lock()
-        log_name = __file__.strip('.py')
-        self.log = self.init_log(f"{log_name}.log")
+        #log_name = __file__.strip('.py')
+        self.log = self.init_log(f"{current_process().name}-{task_id()}.log")
         self.lock = Lock()
         self.http_client = AsyncHTTPClient()
 
@@ -202,8 +206,9 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--port", dest="port", help="port", required=True)
     parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server", required=True)
     args = parser.parse_args()
+    sockets = bind_sockets(args.port)
+    fork_processes(0)
     tcp_server = TelemetryTCPDialOutServer(args.elastic_server)
+    tcp_server.add_sockets(sockets)
     tcp_server.log.info(f"Starting listener on {args.host}:{args.port}")
-    tcp_server.bind(args.port)
-    tcp_server.start(0)
     IOLoop.current().start()
