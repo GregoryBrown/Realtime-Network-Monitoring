@@ -14,6 +14,7 @@ from requests import request
 from protos.telemetry_pb2 import Telemetry
 from google.protobuf import json_format
 from logging.handlers import RotatingFileHandler
+from google.protobuf.message import DecodeError
 
 def init_logging(name, queue):
     log_listener = MultiProcessQueueLoggingListner(name, queue)
@@ -25,7 +26,8 @@ def mkdir_p(path):
     try:
         os.makedirs(path, exist_ok=True)  
     except TypeError as e:
-        print(e)
+        raise e
+    except Exception as e:
         raise e
         
 
@@ -40,8 +42,8 @@ class RTNMRotatingFileHandler(RotatingFileHandler):
             print("Can't initialize logs")
             exit(0)
 
-def init_dial_in_logs(name, path):
-    for log_name in [name, f"ES-{name}", f"Conn-{name}", f"Worker-{name}"]:
+def init_log(log_name, path):
+    try:
         logger = logging.getLogger(log_name)
         logger.setLevel(logging.DEBUG)
         file_handler = RTNMRotatingFileHandler(f"{path}/{log_name}", maxBytes=536870912, backupCount=2)
@@ -51,7 +53,12 @@ def init_dial_in_logs(name, path):
         screen_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         logger.addHandler(screen_handler)
-        yield logger
+        return logger
+    except Exception as e:
+        print(e)
+        print("Couldn't initialize log")
+        exit(1)
+              
 
 '''
 def populate_index_list(elastic_server, logger):
@@ -129,8 +136,10 @@ def process_cisco_encoding(batch_list):
         formatted_json_segments = [x for x in formatted_json_segments if x is not None]
         formatted_json_segments = [item for sublist in formatted_json_segments for item in sublist]
         return formatted_json_segments
+    except DecodeError as e:
+        raise e
     except Exception as e:
-        return None
+        raise e
         
         
 

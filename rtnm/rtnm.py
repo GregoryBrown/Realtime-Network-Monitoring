@@ -1,7 +1,7 @@
 import os
 from argparse import ArgumentParser
 from utils.configurationparser import ConfigurationParser
-from utils.utils import init_dial_in_logs
+from utils.utils import init_log
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from connectors.CiscoTCPDialOut import TelemetryTCPDialOutServer
 from multiprocessing import Process, current_process, Pool, Manager, Queue, Value, Lock
@@ -16,7 +16,8 @@ from databases.databases import  ElasticSearchUploader
 def start_dial_out(address, port, elasticsearch_server, elasticsearch_port, batch_size):
     sockets = bind_sockets(port)
     fork_processes(0)
-    tcp_server = TelemetryTCPDialOutServer(elasticsearch_server, elasticsearch_port, batch_size)
+    path = f"{os.path.dirname(os.path.realpath(__file__))}/logs"
+    tcp_server = TelemetryTCPDialOutServer(elasticsearch_server, elasticsearch_port, batch_size, path)
     tcp_server.add_sockets(sockets)
     tcp_server.log.info(f"Starting listener on {address}:{port}")
     IOLoop.current().start()
@@ -100,6 +101,7 @@ def main():
             parser.error("Can't parse the config file")
     else:
         clients = parser_cli_options(args) #TODO
+    
     dial_out = clients["cisco-dial-out"]
     if not dial_out["Address"] == "None":
         processes.append(Process(target=start_dial_out, args=(dial_out["Address"], dial_out["Port"],

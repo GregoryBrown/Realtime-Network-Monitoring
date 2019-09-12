@@ -5,36 +5,41 @@ from logging.handlers import RotatingFileHandler
 from tornado.tcpserver import TCPServer
 from tornado.iostream import StreamClosedError
 from tornado.httpclient import AsyncHTTPClient, HTTPError, HTTPRequest
+from google.protobuf.message import DecodeError 
 from tornado.locks import Lock
 from multiprocessing import current_process
 from tornado.process import task_id
 from tornado import gen
 from struct import Struct, unpack
 from errors.errors import GetIndexListError, PostDataError, PutIndexError
-from utils.utils import process_cisco_encoding
+from utils.utils import process_cisco_encoding, init_log
 
 class TelemetryTCPDialOutServer(TCPServer):
-    def __init__(self, elasticsearch_server, elasticsearch_port, batch_size):
+    def __init__(self, elasticsearch_server, elasticsearch_port, batch_size, path):
         super().__init__()
         self.elastic_server = elasticsearch_server
         self.elastic_server_port = elasticsearch_port
         self.url = f"http://{self.elastic_server}:{self.elastic_server_port}"
         self.lock = Lock()
-        self.log = self.init_log(f"{current_process().name}-{task_id()}.log")
         self.batch_size = batch_size
+        AsyncHTTPClient.configure(None, max_clients=1000)
         self.http_client = AsyncHTTPClient()
+        try:
+            self.log = init_log(f"{current_process().name}-{task_id()}.log", path)
+        except Exception as e:
+            print(e)
+            exit(1)
 
+        
     async def get_index_list(self):
         try:
-            indices = []
+            index_list = []
             response = await self.http_client.fetch(f"{self.url}/*")
             response = json.loads(response.body.decode())
             for key in response:
                 if not key.startswith('.'):
-                    indices.append(key)
-            return indices
-        except HTTPError as e:
-            raise e
+                    index_list.append(key)
+            return index_list
         except Exception as e:
             raise GetIndexListError(response.code, str(e), "Got Exception while trying to get index list")
             
@@ -73,25 +78,28 @@ class TelemetryTCPDialOutServer(TCPServer):
 
 
 
-    def init_log(self, log_name):
-        logger = logging.getLogger(log_name)
-        file_handler = RotatingFileHandler(log_name, maxBytes=536870912, backupCount=2)
-        screen_handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
-        file_handler.setFormatter(formatter)
-        screen_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        logger.addHandler(screen_handler)
-        logger.setLevel(logging.DEBUG)
-        return logger
-    
     
     async def handle_stream(self, stream, address):
         try:
+            self.index_list = await self.get_index_list()
             HEADER_SIZE = 12
             header_struct = Struct('>hhhhi')
             _UNPACK_HEADER = header_struct.unpack
             self.log.info(f"Got Connection from {address[0]}:{address[1]}")
+            access_log = logging.getLogger("tornado.access")
+            app_log = logging.getLogger("tornado.application")
+            gen_log = logging.getLogger("tornado.general")
+            
+            access_log.setLevel(logging.DEBUG)
+            app_log.setLevel(logging.DEBUG)
+            gen_log.setLevel(logging.DEBUG)
+            
+            screen_handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+            screen_handler.setFormatter(formatter)
+            access_log.addHandler(screen_handler)
+            app_log.addHandler(screen_handler)
+            gen_log.addHandler(screen_handler)
             while not stream.closed():
                 batch_list = []
                 while len(batch_list) < self.batch_size:
@@ -113,19 +121,15 @@ class TelemetryTCPDialOutServer(TCPServer):
                             sorted_by_index[converted_decode_segment["_index"]] = [converted_decode_segment]
                         else:
                             sorted_by_index[converted_decode_segment["_index"]].append(converted_decode_segment)
-                    index_list =  await self.get_index_list()
                     for index in sorted_by_index.keys():
-                        if index not in index_list:
+                        if index not in self.index_list:
                             async with self.lock:
                                 self.log.info("Acquired lock to put index in elasticsearch")
                                 put_rc = False
+                                self.index_list = await self.get_index_list()
                                 while not put_rc:
-                                    index_list = await self.get_index_list()
-                                    if index not in index_list:
-                                        put_rc = await self.put_index(index)
-                                    else:
-                                        put_rc = True
-                                index_list.append(index)
+                                    put_rc = await self.put_index(index)
+                                self.index_list.append(index)
                     segment_list = sorted_by_index[index]
                     elastic_index = {'index': {'_index': f'{index}'}}
                     payload_list = [elastic_index]
@@ -138,8 +142,17 @@ class TelemetryTCPDialOutServer(TCPServer):
                     data_to_post += '\n'                        
                     await self.post_data(data_to_post)
 
-                        
+        except DecodeError as e:
+            self.log.error(e)
+            self.log.error(f"Unable to upload data to Elasticsearch due to decode error")
         except StreamClosedError as e:
+            print(dir(e))
+            print(e.errno)
+            print(e.real_error)
+            print(e.filename)
+            print(e.filename2)
+            print(e.strerror)
+            print(e.args)
             self.log.error(e)
             self.log.error(f"Getting closed stream from {address[0]}:{address[1]}")
             stream.close()
