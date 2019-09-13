@@ -72,7 +72,8 @@ class TelemetryTCPDialOutServer(TCPServer):
             elif e.code == 599:
                 return False
             else:
-                 raise e
+                raise e
+            
         except Exception as e:
             raise PutIndexError(response.code, str(e), index, "Error while putting index to ElasticSearch")
 
@@ -111,6 +112,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                         packet = await stream.read_bytes(msg_length - len(msg_data))
                         msg_data += packet
                     batch_list.append(msg_data)
+                    print(len(batch_list))
                 sorted_by_index = {}
                 converted_decode_segments = process_cisco_encoding(batch_list)
                 if converted_decode_segments == None:
@@ -139,7 +141,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                         payload_list.append(elastic_index)
                     payload_list.pop()
                     data_to_post = '\n'.join(json.dumps(d) for d in payload_list)
-                    data_to_post += '\n'                        
+                    data_to_post += '\n'
                     await self.post_data(data_to_post)
 
         except DecodeError as e:
@@ -155,7 +157,6 @@ class TelemetryTCPDialOutServer(TCPServer):
             print(e.args)
             self.log.error(e)
             self.log.error(f"Getting closed stream from {address[0]}:{address[1]}")
-            stream.close()
         except  GetIndexListError as e:
             self.log.error(traceback.print_exc())
             self.log.error(e.code)
