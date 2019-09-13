@@ -112,7 +112,6 @@ class TelemetryTCPDialOutServer(TCPServer):
                         packet = await stream.read_bytes(msg_length - len(msg_data))
                         msg_data += packet
                     batch_list.append(msg_data)
-                    print(len(batch_list))
                 sorted_by_index = {}
                 converted_decode_segments = process_cisco_encoding(batch_list)
                 if converted_decode_segments == None:
