@@ -34,7 +34,8 @@ class TelemetryTCPDialOutServer(TCPServer):
     async def get_index_list(self):
         try:
             index_list = []
-            response = await self.http_client.fetch(f"{self.url}/*")
+            request = HTTPRequest(url=f"{self.url}/*", connect_timeout=40.0, request_timeout=40.0)
+            response = await self.http_client.fetch(request)
             response = json.loads(response.body.decode())
             for key in response:
                 if not key.startswith('.'):
@@ -47,13 +48,17 @@ class TelemetryTCPDialOutServer(TCPServer):
     async def post_data(self, data_to_post):
         try:
             headers = {'Content-Type': "application/x-ndjson"}
-            request = HTTPRequest(url=f"{self.url}/_bulk", method="POST", headers=headers, body=data_to_post)
+            request = HTTPRequest(url=f"{self.url}/_bulk", method="POST", headers=headers, body=data_to_post, connect_timeout=40.0, request_timeout=40.0)
             response = await self.http_client.fetch(request=request)
             return True
         except HTTPError as e:
+            self.log.error(traceback.format_exc())
             if e.code == 599:
+                self.log.error(f"Hit a TimeoutError in POST data {e}")
+                
                 return False
             else:
+                self.log.error(e)
                 raise e
         except Exception as e:
             raise PostDataError(response.code, str(e), data_to_post, "Error while posting data to ElasticSearch")
@@ -61,16 +66,19 @@ class TelemetryTCPDialOutServer(TCPServer):
     
     async def put_index(self, index):
         try:
-            self.log.info("Putting {index} into Elasticsearch")
+            self.log.info(f"Putting {index} into Elasticsearch")
             headers = {'Content-Type': "application/json"}
             mapping = '{"mappings": {"properties": {"@timestamp": {"type": "date"}}}}'
-            request = HTTPRequest(url=f"{self.url}/{index}", method="PUT", headers=headers, body=mapping)
+            request = HTTPRequest(url=f"{self.url}/{index}", method="PUT", headers=headers, body=mapping, connect_timeout=40.0, request_timeout=40.0)
             response = await self.http_client.fetch(request)
             return True
         except HTTPError as e:
+            self.log.error(traceback.format_exc())
             if e.code == 400 and e.message == "Bad Request":
+                self.log.error(f"Hit a Bad request in PUT index")
                 return False
             elif e.code == 599:
+                self.log.error(f"Hit a TimeoutError in PUT index {e}")
                 return False
             else:
                 raise e
@@ -128,7 +136,10 @@ class TelemetryTCPDialOutServer(TCPServer):
                                 put_rc = False
                                 while not put_rc:
                                     self.index_list = await self.get_index_list()
-                                    put_rc = await self.put_index(index)
+                                    if index not in self.index_list:
+                                        put_rc = await self.put_index(index)
+                                    else:
+                                        put_rc = True
                                 self.index_list.append(index)
                     segment_list = sorted_by_index[index]
                     elastic_index = {'index': {'_index': f'{index}'}}
