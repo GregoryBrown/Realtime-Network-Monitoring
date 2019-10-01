@@ -2,6 +2,7 @@ import os
 from argparse import ArgumentParser
 from utils.configurationparser import ConfigurationParser
 from utils.utils import init_log
+from utils.exceptions import IODefinedError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from connectors.CiscoTCPDialOut import TelemetryTCPDialOutServer
 from multiprocessing import Process, current_process, Pool, Manager, Queue, Value, Lock
@@ -13,13 +14,16 @@ from tornado.process import fork_processes, task_id
 from databases.databases import  ElasticSearchUploader
 
 
-def start_dial_out(address, port, elasticsearch_server, elasticsearch_port, batch_size):
-    sockets = bind_sockets(port)
+def start_dial_out(input_args, output):
+    sockets = bind_sockets(int(input_args["port"]), input_args["address"])
     fork_processes(0)
     path = f"{os.path.dirname(os.path.realpath(__file__))}/logs"
-    tcp_server = TelemetryTCPDialOutServer(elasticsearch_server, elasticsearch_port, batch_size, path)
+    single_output = None
+    for out in output:
+        single_output = output[out]
+    tcp_server = TelemetryTCPDialOutServer(single_output, input_args["batch-size"], path)
     tcp_server.add_sockets(sockets)
-    tcp_server.log.info(f"Starting listener on {address}:{port}")
+    tcp_server.log.info(f"Starting listener on {input_args['address']}:{input_args['port']}")
     IOLoop.current().start()
 
 
@@ -94,18 +98,23 @@ def main():
     args = parser.parse_args()
     processes = []
     if args.config:
-        config = ConfigurationParser(args.config)
-        if config.parse_config():
-            clients = config.clients
-        else:
-            parser.error("Can't parse the config file")
+        try:
+            config = ConfigurationParser(args.config)
+            inputs, outputs = config.generate_clients()
+        except IODefinedError:
+            parser.error("Need to define both an input and output in the configuraiton")
+        except KeyError as e:
+            parser.error(f"Error in the configuration file: No key for {e}.\nCan't parse the config file")
+        except Exception as e:
+            parser.error(e)
     else:
-        clients = parser_cli_options(args) #TODO
+        inputs, outputs = parser_cli_options(args) #TODO
     
-    dial_out = clients["cisco-dial-out"]
-    if not dial_out["Address"] == "None":
-        processes.append(Process(target=start_dial_out, args=(dial_out["Address"], dial_out["Port"],
-                                                              dial_out["DatabaseIP"][0], dial_out["ES-Port"], dial_out["BatchSize"], ), name="DialOutProcess"))
+    for client in inputs:
+        if inputs[client]["io"] == "out":
+            processes.append(Process(target=start_dial_out, args=(inputs[client], outputs, ), name=client))
+        else:
+            pass
     '''
     elastic_lock = Manager().Lock()
     index_list = Manager().list()
@@ -130,7 +139,7 @@ def main():
         process.start()
     for process in processes:
         process.join()
-
+    
 
 if __name__ == '__main__':
     main()

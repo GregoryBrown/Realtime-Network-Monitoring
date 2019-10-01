@@ -14,17 +14,17 @@ from struct import Struct, unpack
 from errors.errors import GetIndexListError, PostDataError, PutIndexError
 from utils.utils import process_cisco_encoding, init_log
 
+
 class TelemetryTCPDialOutServer(TCPServer):
-    def __init__(self, elasticsearch_server, elasticsearch_port, batch_size, path):
-        super().__init__()
-        self.elastic_server = elasticsearch_server
-        self.elastic_server_port = elasticsearch_port
-        self.url = f"http://{self.elastic_server}:{self.elastic_server_port}"
-        self.lock = Lock()
-        self.batch_size = batch_size
-        AsyncHTTPClient.configure(None, max_clients=1000)
-        self.http_client = AsyncHTTPClient()
+    def __init__(self, output, batch_size, path):
         try:
+            super().__init__()
+            self.batch_size = int(batch_size)
+            self.url = f"http://{output['address']}:{output['port']}"
+            self.lock = Lock()
+            AsyncHTTPClient.configure(None, max_clients=1000)
+            self.http_client = AsyncHTTPClient()
+            self.index_list = None
             self.log = init_log(f"{current_process().name}-{task_id()}.log", path)
         except Exception as e:
             print(e)
@@ -61,6 +61,7 @@ class TelemetryTCPDialOutServer(TCPServer):
     
     async def put_index(self, index):
         try:
+            self.log.info("Putting {index} into Elasticsearch")
             headers = {'Content-Type': "application/json"}
             mapping = '{"mappings": {"properties": {"@timestamp": {"type": "date"}}}}'
             request = HTTPRequest(url=f"{self.url}/{index}", method="PUT", headers=headers, body=mapping)
@@ -87,20 +88,18 @@ class TelemetryTCPDialOutServer(TCPServer):
             header_struct = Struct('>hhhhi')
             _UNPACK_HEADER = header_struct.unpack
             self.log.info(f"Got Connection from {address[0]}:{address[1]}")
-            access_log = logging.getLogger("tornado.access")
-            app_log = logging.getLogger("tornado.application")
-            gen_log = logging.getLogger("tornado.general")
-            
-            access_log.setLevel(logging.DEBUG)
-            app_log.setLevel(logging.DEBUG)
-            gen_log.setLevel(logging.DEBUG)
-            
-            screen_handler = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
-            screen_handler.setFormatter(formatter)
-            access_log.addHandler(screen_handler)
-            app_log.addHandler(screen_handler)
-            gen_log.addHandler(screen_handler)
+            #access_log = logging.getLogger("tornado.access")
+            #app_log = logging.getLogger("tornado.application")
+            #gen_log = logging.getLogger("tornado.general")
+            #access_log.setLevel(logging.DEBUG)
+            #app_log.setLevel(logging.DEBUG)
+            #gen_log.setLevel(logging.DEBUG)
+            #screen_handler = logging.StreamHandler()
+            #formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+            #screen_handler.setFormatter(formatter)
+            #access_log.addHandler(screen_handler)
+            #app_log.addHandler(screen_handler)
+            #gen_log.addHandler(screen_handler)
             while not stream.closed():
                 batch_list = []
                 while len(batch_list) < self.batch_size:
@@ -127,8 +126,8 @@ class TelemetryTCPDialOutServer(TCPServer):
                             async with self.lock:
                                 self.log.info("Acquired lock to put index in elasticsearch")
                                 put_rc = False
-                                self.index_list = await self.get_index_list()
                                 while not put_rc:
+                                    self.index_list = await self.get_index_list()
                                     put_rc = await self.put_index(index)
                                 self.index_list.append(index)
                     segment_list = sorted_by_index[index]
@@ -147,13 +146,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.error(e)
             self.log.error(f"Unable to upload data to Elasticsearch due to decode error")
         except StreamClosedError as e:
-            print(dir(e))
-            print(e.errno)
-            print(e.real_error)
-            print(e.filename)
-            print(e.filename2)
-            print(e.strerror)
-            print(e.args)
+            self.log.error(traceback.print_exc())
             self.log.error(e)
             self.log.error(f"Getting closed stream from {address[0]}:{address[1]}")
         except  GetIndexListError as e:

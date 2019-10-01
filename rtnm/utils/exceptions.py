@@ -21,3 +21,7 @@ class DatabaseUploadFailed(Exception):
 class ElasticsearchUploadFailed(DatabaseUploadFailed):
     """Unable to upload data to elasticsearch database"""
     pass
+
+class IODefinedError(Exception):
+    """User didn't define an input and output in the configuration file"""
+    pass
