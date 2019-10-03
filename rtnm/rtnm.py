@@ -22,6 +22,7 @@ def start_dial_out(input_args, output):
     for out in output:
         single_output = output[out]
     tcp_server = TelemetryTCPDialOutServer(single_output, input_args["batch-size"], path)
+    #tcp_server.listen(input_args["port"])
     tcp_server.add_sockets(sockets)
     tcp_server.log.info(f"Starting listener on {input_args['address']}:{input_args['port']}")
     IOLoop.current().start()

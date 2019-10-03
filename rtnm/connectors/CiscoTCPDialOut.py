@@ -141,17 +141,17 @@ class TelemetryTCPDialOutServer(TCPServer):
                                     else:
                                         put_rc = True
                                 self.index_list.append(index)
-                    segment_list = sorted_by_index[index]
-                    elastic_index = {'index': {'_index': f'{index}'}}
-                    payload_list = [elastic_index]
-                    for segment in segment_list:
-                        segment.pop('_index', None)
-                        payload_list.append(segment)
-                        payload_list.append(elastic_index)
-                    payload_list.pop()
-                    data_to_post = '\n'.join(json.dumps(d) for d in payload_list)
-                    data_to_post += '\n'
-                    await self.post_data(data_to_post)
+                        segment_list = sorted_by_index[index]
+                        elastic_index = {'index': {'_index': f'{index}'}}
+                        payload_list = [elastic_index]
+                        for segment in segment_list:
+                            segment.pop('_index', None)
+                            payload_list.append(segment)
+                            payload_list.append(elastic_index)
+                        payload_list.pop()
+                        data_to_post = '\n'.join(json.dumps(d) for d in payload_list)
+                        data_to_post += '\n'
+                        await self.post_data(data_to_post)
 
         except DecodeError as e:
             self.log.error(e)
