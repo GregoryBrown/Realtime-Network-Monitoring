@@ -40,7 +40,7 @@ class ElasticSearchUploader(object):
         headers = {'Content-Type': "application/x-ndjson"}
         post_response = request("POST", f"{self.url}/_bulk", data=data_to_post, headers=headers)
         if post_response.json()['errors']:
-            raise PostDataError(post_response.status_code, post_response.json(), "POST failed to upload data")
+            raise PostDataError(post_response.status_code, post_response.json(), data_to_post, "POST failed to upload data")
     
     def upload(self, data_list):
         try:
