@@ -1,49 +1,104 @@
 import grpc
 import logging
+import json
 
 from protos.cisco_mdt_dial_in_pb2_grpc import gRPCConfigOperStub
-from protos.cisco_mdt_dial_in_pb2 import CreateSubsArgs
+from protos.cisco_mdt_dial_in_pb2 import CreateSubsArgs, ConfigGetArgs
+from protos.gnmi_pb2_grpc import gNMIStub
+from protos.gnmi_pb2 import Subscription, SubscriptionList, SubscribeRequest, SubscribeResponse
 from multiprocessing import Process
 from google.protobuf import json_format
+from utils.utils import create_gnmi_path
 
 class DialInClient(Process):
-    def __init__(self, host, port, data_queue, log, sub_args, user, password, connected, timeout=100000000, name='DialInClient'):
-        super().__init__(name=name)
-        self._host = host
-        self.name = name
-        self._port = port
-        self._timeout = float(timeout)
-        self._channel = None
-        self.log = log
-        self._cisco_ems_stub = None
-        self._connected = connected
-        self._metadata = [('username', user), ('password', password)]
+    def __init__(self, connected, data_queue, log_name, options=[('grpc.ssl_target_name_override', 'ems.cisco.com')], timeout=10000000, *args, **kwargs):
+        super().__init__(name=kwargs['name'])
+        self._host = kwargs["address"]
+        self._port = kwargs["port"]
         self.queue = data_queue
-        self.sub_id = sub_args
+        self.log = logging.getLogger(log_name)
+        self._metadata = [('username', kwargs["username"]), ('password', kwargs["password"])]
+        self._connected = connected
+        self._format = kwargs["format"]
+        self.encoding = kwargs["encoding"]
+        if self._format == "gnmi":
+            self.sub_mode = kwargs["sub-mode"]
+            self.sensors = kwargs["sensors"]
+            self.sample_interval = int(kwargs["sample-interval"]) * 1000000000
+            self.stream_mode = kwargs["stream-mode"]
+        else:
+            self.subs = kwargs["subs"]
+        self.options = options
+        self._timeout = float(timeout)
+        self.channel = None
 
 
-    def subscribe(self):
+
+    def get_host_node(self):
+        stub = gRPCConfigOperStub(self.channel)
+        path = '{"Cisco-IOS-XR-shellutil-cfg:host-names": [null]}'
+        message = ConfigGetArgs(yangpathjson=path)
+        responses = stub.GetConfig(message, 10000, metadata=self._metadata)
+        for response in responses:
+            if response.errors:
+                self.log.error(response.errors)
+                exit(1)
+            hostname = response.yangjson
+        return json.loads(hostname.strip())["Cisco-IOS-XR-shellutil-cfg:host-names"]["host-name"]
+
+    
+    def sub_to_path(self, request):
+        yield request
+        
+    def gNMIsubscribe(self):
         try:
-            self._cisco_ems_stub = gRPCConfigOperStub(self._channel)
-            sub_args = CreateSubsArgs(ReqId=1, encode=3, subidstr=self.sub_id)
-            stream = self._cisco_ems_stub.CreateSubs(sub_args, timeout=self._timeout, metadata=self._metadata)
+            node = self.get_host_node()
+            self.gnmi_stub = gNMIStub(self.channel)
+            subs = []
+            for path in self.sensors:
+                subs.append(Subscription(path=create_gnmi_path(path), mode=self.sub_mode, sample_interval=self.sample_interval))
+            sub_list = SubscriptionList(subscription=subs, mode=self.stream_mode, encoding=2)
+            sub_request = SubscribeRequest(subscribe=sub_list)
+            req_iterator = self.sub_to_path(sub_request)
+            batch_list = []
+            for response in self.gnmi_stub.Subscribe(req_iterator, metadata=self._metadata):
+                if response.error:
+                    self.log.error(response.error)
+                    exit(1)
+                json_response = json_format.MessageToJson(response)
+                json_response = json.loads(json_response)
+                json_response["node"] = node
+                self.queue.put_nowait(json_response)
+        except Exception as e:
+            self.log.error(e)
+            print(json_response)
+            self._connected.value = False
+            exit(1)
+            
+    def EMSsubscribe(self):
+        try:
+            self.cisco_ems_stub = gRPCConfigOperStub(self.channel)
+            sub_args = CreateSubsArgs(ReqId=1, encode=3, Subscriptions=self.subs)
+            stream = self.cisco_ems_stub.CreateSubs(sub_args, timeout=self._timeout, metadata=self._metadata)
             for segment in stream:
                 if segment.errors:
-                    self.log.error(segment.errors)
-                    self.queue.put_nowait(None)
+                    self.log.logger.error(segment.errors)
                     self._connected.value = False
+                    exit(1)
                 else:
                     self.queue.put_nowait(segment.data)
         except Exception as e:
             self.log.error(e)
-            self.queue.put_nowait(None)
             self._connected.value = False
+            exit(1)
+
 
     def connect(self):
-        self._channel = grpc.insecure_channel(':'.join([self._host, self._port]))
+        self.channel = grpc.insecure_channel(':'.join([self._host, self._port]))
         try:
-            grpc.channel_ready_future(self._channel).result(timeout=10)
+            grpc.channel_ready_future(self.channel).result(timeout=10)
             self._connected.value = True
+            self.log.info("Connected")
         except grpc.FutureTimeoutError as e:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
             self.log.error(e)
@@ -56,23 +111,27 @@ class DialInClient(Process):
     def run(self):
         self.connect()
         if self.isconnected():
-            self.subscribe()
+            if self._format == 'gnmi':
+                self.gNMIsubscribe()
+            else:
+                self.EMSsubscribe()
+         
             
 
 class TLSDialInClient(DialInClient):
-    def __init__(self, host, port, data_queue, log_name, sub_args, user, password, connected, pem, timeout=100000000, name='TLSDialInClient'):
+    def __init__(self, pem, *args, **kwargs):
+        super().__init__(*args, **kwargs)        
         self._pem = pem
-        super().__init__(host, port, data_queue, log_name, sub_args, user, password, connected, timeout, name)
-
+        
     def connect(self):
         creds = grpc.ssl_channel_credentials(self._pem)
-        opts = (('grpc.ssl_target_name_override', 'ems.cisco.com',),)
-        self._channel = grpc.secure_channel(':'.join([self._host, self._port]), creds, opts)
+        self.channel = grpc.secure_channel(':'.join([self._host, self._port]), creds, self.options)
         try:
-            grpc.channel_ready_future(self._channel).result(timeout=10)
+            grpc.channel_ready_future(self.channel).result(timeout=10)
+            self.log.info("Connected")
             self._connected.value = True
         except grpc.FutureTimeoutError as e:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
             self.log.error(e)
-            self.queue.put_nowait(None)
             self._connected.value = False
+            

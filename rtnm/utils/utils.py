@@ -40,10 +40,11 @@ class RTNMRotatingFileHandler(RotatingFileHandler):
         except TypeError as e:
             print(e)
             print("Can't initialize logs")
-            exit(0)
+            exit(1)
 
-def init_log(log_name, path):
-    try:
+
+def init_logs(names, path):
+    for log_name in names: #[name, f"ES-{name}", f"Conn-{name}", f"Worker-{name}"]:
         logger = logging.getLogger(log_name)
         logger.setLevel(logging.DEBUG)
         file_handler = RTNMRotatingFileHandler(f"{path}/{log_name}", maxBytes=536870912, backupCount=2)
@@ -53,11 +54,8 @@ def init_log(log_name, path):
         screen_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         logger.addHandler(screen_handler)
-        return logger
-    except Exception as e:
-        print(e)
-        print("Couldn't initialize log")
-        exit(1)
+        yield logger
+
               
 
 '''

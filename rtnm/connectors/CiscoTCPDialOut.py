@@ -12,7 +12,7 @@ from tornado.process import task_id
 from tornado import gen
 from struct import Struct, unpack
 from errors.errors import GetIndexListError, PostDataError, PutIndexError
-from utils.utils import process_cisco_encoding, init_log
+from utils.utils import process_cisco_encoding, init_logs
 
 
 class TelemetryTCPDialOutServer(TCPServer):
@@ -25,7 +25,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             AsyncHTTPClient.configure(None, max_clients=1000)
             self.http_client = AsyncHTTPClient()
             self.index_list = None
-            self.log = init_log(f"{current_process().name}-{task_id()}.log", path)
+            self.log = init_logs([f"{current_process().name}-{task_id()}.log"], path)
         except Exception as e:
             print(e)
             exit(1)
