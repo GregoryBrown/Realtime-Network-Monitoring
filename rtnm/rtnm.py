@@ -62,7 +62,7 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
     while not client.is_connected() and client.is_alive():
         pass
     with worker_pool as pool:
-        while client.isconnected():
+        while client.is_connected():
             try:
                 data = data_queue.get(timeout=1)
                 if data is not None:

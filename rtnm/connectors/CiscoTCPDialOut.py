@@ -12,8 +12,7 @@ from tornado.process import task_id
 from tornado import gen
 from struct import Struct, unpack
 from errors.errors import GetIndexListError, PostDataError, PutIndexError
-from utils.utils import process_cisco_encoding, init_logs
-
+from converters.converters import DataConverter
 
 class TelemetryTCPDialOutServer(TCPServer):
     def __init__(self, output, batch_size, path):
