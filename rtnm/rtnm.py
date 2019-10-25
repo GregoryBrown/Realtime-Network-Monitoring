@@ -132,15 +132,11 @@ def main():
     rtnm_log.logger.info("Starting inputs and outputs")
     for client in inputs:
         inputs[client]["debug"] = args.debug
-        '''
         if inputs[client]["io"] == "out":
+            rtnm_log.logger.info(f"Starting dial out client [{client}]")
             processes.append(Process(target=start_dial_out, args=(inputs[client], outputs, ), name=client))
         else:
-            elastic_lock = Manager().Lock()
-            index_list = Manager().list()
-        '''
-        if inputs[client]["io"] == "in":
-            rtnm_log.logger.info(f"Startting dial in client [{client}]")
+            rtnm_log.logger.info(f"Starting dial in client [{client}]")
             processes.append(Process(target=start_dial_in_sub, args=(inputs[client], output, elastic_lock, index_list, log_name,), name=client))
     for process in processes:
         process.start()
