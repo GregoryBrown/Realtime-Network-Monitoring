@@ -2,28 +2,31 @@ import json
 from requests import request
 from errors.errors import GetIndexListError, PostDataError, PutIndexError
 
+
 class ElasticSearchUploader(object):
-    def __init__(self, elastic_server, elastic_port, lock, log):
+    def __init__(self, elastic_server, elastic_port, index_list, lock, log):
         self.lock = lock
         self.url = f"http://{elastic_server}:{elastic_port}"
         self.log = log
-        self.index_list = []
+        self.index_list = index_list
 
     def put_index(self, index):
-         headers = {'Content-Type': "application/json"}
-         mapping = {"mappings": {"properties": {"@timestamp": {"type": "date"}}}}
-         index_put_response = request("PUT", f"{self.url}/{index}", headers=headers, json=mapping)
-         if not index_put_response.status_code == 200:
-             raise PutIndexError(index_put_response.status_code, index_put_response.json(), index, f"PUT failed to upload {index}")
-         else:
-             self.index_list.append(index)
+        headers = {'Content-Type': "application/json"}
+        mapping = {"mappings": {"properties": {"@timestamp": {"type": "date"}}}}
+        index_put_response = request("PUT", f"{self.url}/{index}", headers=headers, json=mapping)
+        if not index_put_response.status_code == 200:
+            raise PutIndexError(index_put_response.status_code, index_put_response.json(), index,
+                                f"PUT failed to upload {index}")
+        else:
+            self.index_list.append(index)
 
     def populate_index_list(self):
         try:
             self.log.info("Populating index list")
             get_response = request("GET", f"{self.url}/*")
             if not get_response.status_code == 200:
-                raise GetIndexListError(get_response.status_code, get_response.json(), "GET failed to retrieve all indices")
+                raise GetIndexListError(get_response.status_code, get_response.json(),
+                                        "GET failed to retrieve all indices")
             for key in get_response.json():
                 if not key.startswith('.'):
                     self.index_list.append(key)
@@ -56,7 +59,7 @@ class ElasticSearchUploader(object):
                 sorted_by_index[data["_index"]].append(data)
         for index in sorted_by_index.keys():
             if index not in self.index_list:
-                self.log.info('Acquired lock to put index in elasticsearch')
+                self.log.info('Acquired lock to put index in Elasticsearch')
                 with self.lock:
                     try:
                         self.populate_index_list()

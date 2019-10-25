@@ -1,8 +1,11 @@
 """
 Global Real Time Network Monitoring exception and warning classes.
 """
+
+
 class Error(Exception):
     pass
+
 
 class GetIndexListError(Error):
     """Error while doing a Get request against ES"""
@@ -10,6 +13,7 @@ class GetIndexListError(Error):
         self.code = code 
         self.response = response_json
         self.message = message
+
 
 class PostDataError(Error):
     """Error Posting data to ES"""
@@ -33,17 +37,21 @@ class FormatDataError(Error):
     """Formatting data failed with error"""
     pass
 
+
 class DeviceFailedToConnect(Error):
     """The device failed to connect"""
     pass
+
 
 class DeviceDisconnected(Error):
     """The device is disconnected"""
     pass
 
+
 class IODefinedError(Error):
     """User didn't define an input and output in the configuration file"""
     pass
+
 
 class DecodeError(Error):
     """Error while Decoding telemetry data"""

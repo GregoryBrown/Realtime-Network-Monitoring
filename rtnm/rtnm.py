@@ -6,15 +6,16 @@ from utils.configurationparser import ConfigurationParser
 from errors.errors import IODefinedError, PutIndexError, PostDataError, GetIndexListError, DecodeError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from connectors.CiscoTCPDialOut import TelemetryTCPDialOutServer
-from multiprocessing import Process, current_process, Pool, Manager, Queue, Value, Lock, get_logger
+from multiprocessing import Process, current_process, Pool, Manager, Queue, Value
 from queue import Empty
 from ctypes import c_bool
 from tornado.ioloop import IOLoop
 from tornado.netutil import bind_sockets
-from tornado.process import fork_processes, task_id
-from databases.databases import  ElasticSearchUploader
+from tornado.process import fork_processes
+from databases.databases import ElasticSearchUploader
 from loggers.loggers import init_logs, MultiProcessQueueLogger
 from converters.converters import DataConverter
+
 
 def start_dial_out(input_args, output):
     sockets = bind_sockets(int(input_args["port"]), input_args["address"])
@@ -26,11 +27,10 @@ def start_dial_out(input_args, output):
     IOLoop.current().start()
 
 
-
-def process_and_upload_data(batch_list, encoding, log_name, output, lock):
+def process_and_upload_data(batch_list, encoding, log_name, output, index_list, lock):
+    processor_log = logging.getLogger(log_name)
     try:
-        processor_log = logging.getLogger(log_name)
-        es = ElasticSearchUploader(output["address"], output["port"], lock, processor_log)
+        es = ElasticSearchUploader(output["address"], output["port"], index_list, lock, processor_log)
         converter = DataConverter(batch_list, processor_log, encoding)
         data_list = converter.process_batch_list()
         es.upload(data_list)
@@ -40,6 +40,7 @@ def process_and_upload_data(batch_list, encoding, log_name, output, lock):
 
 def set_pool_process_name(name):
     current_process().name = f"{name}-{current_process().name}"
+
 
 def start_dial_in_sub(input_args, output, lock, index_list, log_name):
     sub_log = logging.getLogger(log_name)
@@ -51,13 +52,14 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
         with open(input_args["pem-file"], "rb") as fp:
             pem = fp.read()
         sub_log.info("Creating TLS Connector")
-        client = TLSDialInClient(pem, connected, data_queue, log_name, **input_args, name=f"conn-{current_process().name}")
+        client = TLSDialInClient(pem, connected, data_queue, log_name, **input_args,
+                                 name=f"conn-{current_process().name}")
     else:
         sub_log.info("Creating Connector")
         client = DialInClient(connected, data_queue, log_name, **input_args, name=f"conn-{current_process().name}")                
     client.start()
     batch_list = []
-    while not client.isconnected() and client.is_alive():
+    while not client.is_connected() and client.is_alive():
         pass
     with worker_pool as pool:
         while client.isconnected():
@@ -68,24 +70,20 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
                     if len(batch_list) >= int(input_args["batch-size"]):
                         sub_log.info(f"Uploading full batch size")
                         pool.apply_async(process_and_upload_data, (batch_list, input_args["format"],
-                                                                   log_name, output, lock,))
-                        #process_and_upload_data(batch_list, worker_log, input_args["format"], es)
+                                                                   log_name, output, index_list, lock,))
                         del batch_list
                         batch_list = []
             except Empty:
                 if not len(batch_list) == 0:
                     sub_log.info(f"Uploading data of length {len(batch_list)}")
                     pool.apply_async(process_and_upload_data, (batch_list, input_args["format"],
-                                                               log_name, output, lock,))
-                    #process_and_upload_data(batch_list, worker_log, input_args["format"], es)
+                                                               log_name, output, index_list, lock,))
                     del batch_list
                     batch_list = []
             except Exception as e:
                 sub_log.error(e)
                 exit(1)
             
-                
-
 
 def main():
     parser = ArgumentParser()
@@ -109,43 +107,43 @@ def main():
         try:
             config = ConfigurationParser(args.config)
             inputs, outputs = config.generate_clients()
+            output = outputs[next(iter(outputs))]
+            path = f"{os.path.dirname(os.path.realpath(__file__))}/logs"
+            log_queue = Queue()
+            log_name = f"rtnm_{datetime.date.today()}_{datetime.datetime.now().time().strftime('%H:%M:%S')}"
+            if args.debug:
+                log_listener, rtnm_log = init_logs(log_name, f"{path}", log_queue, True)
+            else:
+                log_listener, rtnm_log = init_logs(log_name, f"{path}", log_queue)
+            elastic_lock = Manager().Lock()
+            index_list = Manager().list()
+            rtnm_log.logger.info("Starting inputs and outputs")
+            for client in inputs:
+                inputs[client]["debug"] = args.debug
+                if inputs[client]["io"] == "out":
+                    rtnm_log.logger.info(f"Starting dial out client [{client}]")
+                    processes.append(Process(target=start_dial_out, args=(inputs[client], outputs,), name=client))
+                else:
+                    rtnm_log.logger.info(f"Starting dial in client [{client}]")
+                    processes.append(Process(target=start_dial_in_sub,
+                                             args=(inputs[client], output, elastic_lock, index_list, log_name,),
+                                             name=client))
+            for process in processes:
+                process.start()
+            for process in processes:
+                process.join()
+            log_listener.queue.put(None)
+            log_listener.join()
         except IODefinedError:
             parser.error("Need to define both an input and output in the configuraiton")
         except KeyError as e:
             parser.error(f"Error in the configuration file: No key for {e}.\nCan't parse the config file")
         except Exception as e:
-            parser.error(e)
+            parser.error(f"Error {e}")
     else:
-        #inputs, outputs = parser_cli_options(args) #TODO
         print("Need to implement cli parsing")
         exit(0)
-    path = f"{os.path.dirname(os.path.realpath(__file__))}/logs"
-    log_queue = Queue()
-    log_name = f"rtnm_{datetime.date.today()}_{datetime.datetime.now().time().strftime('%H:%M:%S')}"
-    if args.debug:
-        log_listener, rtnm_log = init_logs(log_name, f"{path}", log_queue, True)
-    else:
-        log_listener, rtnm_log = init_logs(log_name, f"{path}", log_queue)
-    output = outputs[next(iter(outputs))]
-    elastic_lock = Manager().Lock()
-    index_list = Manager().list()
-    rtnm_log.logger.info("Starting inputs and outputs")
-    for client in inputs:
-        inputs[client]["debug"] = args.debug
-        if inputs[client]["io"] == "out":
-            rtnm_log.logger.info(f"Starting dial out client [{client}]")
-            processes.append(Process(target=start_dial_out, args=(inputs[client], outputs, ), name=client))
-        else:
-            rtnm_log.logger.info(f"Starting dial in client [{client}]")
-            processes.append(Process(target=start_dial_in_sub, args=(inputs[client], output, elastic_lock, index_list, log_name,), name=client))
-    for process in processes:
-        process.start()
-    for process in processes:
-        process.join()
-    log_listener.queue.put(None)
-    log_listener.join()
-    
+
+
 if __name__ == '__main__':
     main()
-
-    

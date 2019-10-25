@@ -1,7 +1,8 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler, QueueHandler
-from multiprocessing import Process, get_logger
+from multiprocessing import Process
+
 
 def mkdir_p(path):
     try:
@@ -12,7 +13,6 @@ def mkdir_p(path):
         raise e
         
 
-    
 class RTNMRotatingFileHandler(RotatingFileHandler):
     def __init__(self, filename, mode='a', maxBytes=0, backupCount=0, encoding=None, delay=False):
         try:
@@ -24,19 +24,21 @@ class RTNMRotatingFileHandler(RotatingFileHandler):
             exit(1)
 
 
-
 def init_logs(name, path, queue, debug=False):
-    log_listener = MultiProcessQueueLogListner(name, path, queue)
+    log_listener = MultiProcessQueueLogListener(name, path, queue)
     log_listener.start()
     main_logger = MultiProcessQueueLogger(name, queue, debug)
     return log_listener, main_logger
 
-class MultiProcessQueueLogListner(Process):
+
+class MultiProcessQueueLogListener(Process):
     def __init__(self, name, path, queue):
         super().__init__(name=name)
         self.log_name = name
         self.path = path
         self.queue = queue
+        self.logger = None
+
     def run(self):
         self.configure()
         rc = True
@@ -49,7 +51,8 @@ class MultiProcessQueueLogListner(Process):
                     self.logger = logging.getLogger(record.name)
                     self.logger.handle(record)
             except Exception as e:
-                import sys, traceback
+                import sys
+                import traceback
                 if self.logger:
                     self.logger.error(traceback.print_exc())
                 else:
@@ -59,13 +62,13 @@ class MultiProcessQueueLogListner(Process):
     
     def configure(self):
         self.logger = logging.getLogger(self.log_name)
-        self.file_handler = RTNMRotatingFileHandler(f"{self.path}/{self.log_name}.log", maxBytes=536870912, backupCount=2)
-        self.screen_handler = logging.StreamHandler()
-        self.formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
-        self.file_handler.setFormatter(self.formatter)
-        self.screen_handler.setFormatter(self.formatter)
-        self.logger.addHandler(self.file_handler)
-        self.logger.addHandler(self.screen_handler)
+        file_handler = RTNMRotatingFileHandler(f"{self.path}/{self.log_name}.log", maxBytes=536870912, backupCount=2)
+        screen_handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+        file_handler.setFormatter(formatter)
+        screen_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        self.logger.addHandler(screen_handler)
 
 
 class MultiProcessQueueLogger(object):

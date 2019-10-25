@@ -30,7 +30,6 @@ class TelemetryTCPDialOutServer(TCPServer):
             print(e)
             exit(1)
 
-        
     async def get_index_list(self):
         try:
             index_list = []
@@ -43,12 +42,12 @@ class TelemetryTCPDialOutServer(TCPServer):
             return index_list
         except Exception as e:
             raise GetIndexListError(response.code, str(e), "Got Exception while trying to get index list")
-            
 
     async def post_data(self, data_to_post):
         try:
             headers = {'Content-Type': "application/x-ndjson"}
-            request = HTTPRequest(url=f"{self.url}/_bulk", method="POST", headers=headers, body=data_to_post, connect_timeout=40.0, request_timeout=40.0)
+            request = HTTPRequest(url=f"{self.url}/_bulk", method="POST", headers=headers, body=data_to_post,
+                                  connect_timeout=40.0, request_timeout=40.0)
             response = await self.http_client.fetch(request=request)
             return True
         except HTTPError as e:
@@ -63,13 +62,13 @@ class TelemetryTCPDialOutServer(TCPServer):
         except Exception as e:
             raise PostDataError(response.code, str(e), data_to_post, "Error while posting data to ElasticSearch")
 
-    
     async def put_index(self, index):
         try:
             self.log.info(f"Putting {index} into Elasticsearch")
             headers = {'Content-Type': "application/json"}
             mapping = '{"mappings": {"properties": {"@timestamp": {"type": "date"}}}}'
-            request = HTTPRequest(url=f"{self.url}/{index}", method="PUT", headers=headers, body=mapping, connect_timeout=40.0, request_timeout=40.0)
+            request = HTTPRequest(url=f"{self.url}/{index}", method="PUT", headers=headers, body=mapping,
+                                  connect_timeout=40.0, request_timeout=40.0)
             response = await self.http_client.fetch(request)
             return True
         except HTTPError as e:
@@ -86,34 +85,20 @@ class TelemetryTCPDialOutServer(TCPServer):
         except Exception as e:
             raise PutIndexError(response.code, str(e), index, "Error while putting index to ElasticSearch")
 
-
-
-    
     async def handle_stream(self, stream, address):
         try:
             self.index_list = await self.get_index_list()
-            HEADER_SIZE = 12
+            _HEADER_SIZE = 12
             header_struct = Struct('>hhhhi')
             _UNPACK_HEADER = header_struct.unpack
             self.log.info(f"Got Connection from {address[0]}:{address[1]}")
-            #access_log = logging.getLogger("tornado.access")
-            #app_log = logging.getLogger("tornado.application")
-            #gen_log = logging.getLogger("tornado.general")
-            #access_log.setLevel(logging.DEBUG)
-            #app_log.setLevel(logging.DEBUG)
-            #gen_log.setLevel(logging.DEBUG)
-            #screen_handler = logging.StreamHandler()
-            #formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
-            #screen_handler.setFormatter(formatter)
-            #access_log.addHandler(screen_handler)
-            #app_log.addHandler(screen_handler)
-            #gen_log.addHandler(screen_handler)
             while not stream.closed():
                 batch_list = []
                 while len(batch_list) < self.batch_size:
-                    header_data = await stream.read_bytes(HEADER_SIZE)
+                    header_data = await stream.read_bytes(_HEADER_SIZE)
                     msg_type, encode_type, msg_version, flags, msg_length = _UNPACK_HEADER(header_data)
                     encoding = {1:'gpb', 2:'json'}[encode_type]
+                    # implement json encoding
                     msg_data = b''
                     while len(msg_data) < msg_length:
                         packet = await stream.read_bytes(msg_length - len(msg_data))
@@ -121,7 +106,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                     batch_list.append(msg_data)
                 sorted_by_index = {}
                 converted_decode_segments = process_cisco_encoding(batch_list)
-                if converted_decode_segments == None:
+                if converted_decode_segments is None:
                     self.log.error("Error parsing and decoding message")
                 else:
                     for converted_decode_segment in converted_decode_segments:

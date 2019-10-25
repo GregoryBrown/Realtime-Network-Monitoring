@@ -6,6 +6,14 @@ import json
 import datetime
 import sys
 
+
+def get_date():
+    now = datetime.datetime.now()
+    month = f"{now.month:02d}"
+    day = f"{now.day:02d}"
+    return '.'.join([str(now.year), month, day])
+
+
 class DataConverter(object):
     def __init__(self, batch_list, log, encoding):
         self.batch_list = batch_list
@@ -17,20 +25,6 @@ class DataConverter(object):
             return self.process_gnmi()
         else:
             return self.process_cisco_encoding()
-            
-
-    def process_gnmi(batch_list):
-        json_segments = []
-        formatted_json_segments = []
-        for batch in batch_list:
-            header = segment["update"]
-            timestamp = header["timestamp"]
-            index, keys, encode_path = process_header(header["prefix"])
-            content = parse_gnmi(header["update"])
-            formatted_json_segments.append({'_index': index, 'keys': keys, 'content': content,
-                                            'encode_path': encode_path, 'host': node,
-                                            'timestamp': int(timestamp)/1000000})
-        return formatted_json_segments
 
     def process_cisco_encoding(self):
         json_segments = []
@@ -59,14 +53,13 @@ class DataConverter(object):
                         output["encode_path"] = telemetry_json["encodingPath"]
                         output["host"] = telemetry_json["nodeIdStr"]
                         output['@timestamp'] = data["timestamp"]
-                        output['_index'] = telemetry_json["encodingPath"].replace('/', '-').lower().replace(':', '-') + '-' + self.get_date()
+                        output['_index'] = telemetry_json["encodingPath"].replace('/', '-').lower().replace(':', '-') + '-' + get_date()
                         rc_list.append(json.loads(json.dumps(output)))
                 return rc_list
         except DecodeError as e:
             self.log.error(e)
         except Exception as e:
             self.log.error(e)
-
 
     def _parse_cisco_data(self, data):
         try:
@@ -78,8 +71,7 @@ class DataConverter(object):
                     for key, value in item.items():
                         if 'Value' in key:
                             if 'uint' in key:
-                                # Check if is an int, and if it is a BIG INTEGER make string
-                                #so it can upload to ES
+                                # Check if is an int, and if it is a BIG INTEGER make string so it can upload to ES
                                 rc_value = int(value)
                                 if rc_value > sys.maxsize:
                                     rc_value = str(rc_value)
@@ -93,9 +85,18 @@ class DataConverter(object):
             self.log.error(e)
             self.log.error(item)
 
-
-
-
+    '''
+        def process_gnmi(self, batch_list):
+        formatted_json_segments = []
+        for segment in batch_list:
+            header = segment["update"]
+            timestamp = header["timestamp"]
+            index, keys, encode_path = process_header(header["prefix"])
+            content = parse_gnmi(header["update"])
+            formatted_json_segments.append({'_index': index, 'keys': keys, 'content': content,
+                                            'encode_path': encode_path, 'host': node,
+                                            'timestamp': int(timestamp)/1000000})
+        return formatted_json_segments
     def get_value(self, val_dict):
         for key, value in val_dict.items():
             if 'string' in key:
@@ -153,7 +154,7 @@ class DataConverter(object):
         month = f"{now.month:02d}"
         day = f"{now.day:02d}"
         return '.'.join([str(now.year), month, day])
-        '''
+        
         def convert_data(self):
             try:
                 converted_decode_segments = process_batch_list(batch_list, self.encoding)
@@ -214,4 +215,4 @@ class DataConverter(object):
             process_logger.error(reply.json())
             # process_logger.logger.error(data_to_post)
             return False
-        '''
+    '''
