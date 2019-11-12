@@ -83,7 +83,7 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
             except Exception as e:
                 sub_log.error(e)
                 exit(1)
-            
+        worker_pool.close()
 
 def main():
     parser = ArgumentParser()
