@@ -5,11 +5,11 @@ import json
 from protos.cisco_mdt_dial_in_pb2_grpc import gRPCConfigOperStub
 from protos.cisco_mdt_dial_in_pb2 import CreateSubsArgs, ConfigGetArgs
 from protos.gnmi_pb2_grpc import gNMIStub
-from protos.gnmi_pb2 import Subscription, SubscriptionList, SubscribeRequest, SubscribeResponse
+from protos.gnmi_pb2 import Subscription, SubscriptionList, SubscribeRequest, SubscribeResponse, GetRequest, GetResponse
 from multiprocessing import Process
 from google.protobuf import json_format
 from utils.utils import create_gnmi_path
-
+import traceback
 
 class DialInClient(Process):
     def __init__(self, connected, data_queue, log_name, options=[('grpc.ssl_target_name_override', 'ems.cisco.com')],
@@ -37,19 +37,16 @@ class DialInClient(Process):
         self.cisco_ems_stub = None
 
     def get_host_node(self):
-        stub = gRPCConfigOperStub(self.channel)
-        path = '{"Cisco-IOS-XR-shellutil-cfg:host-names": [null]}'
-        message = ConfigGetArgs(yangpathjson=path)
-        responses = stub.GetConfig(message, 10000, metadata=self._metadata)
-        for response in responses:
-            if response.errors:
-                self.log.error(response.errors)
-                exit(1)
-            hostname = response.yangjson
-        return json.loads(hostname.strip())["Cisco-IOS-XR-shellutil-cfg:host-names"]["host-name"]
+        self.gnmi_stub = gNMIStub(self.channel)
+        path = "Cisco-IOS-XR-shellutil-cfg:host-names"
+        request = GetRequest(path=[create_gnmi_path(path)], encoding=4, type=2)
+        response = self.gnmi_stub.Get(request, metadata=self._metadata)
+        for notification in response.notification:
+            for update in notification.update:
+                return json.loads(update.val.json_ietf_val)['host-name']
 
     @staticmethod
-    def sub_to_path(self, request):
+    def sub_to_path(request):
         yield request
         
     def gnmi_subscribe(self):
@@ -63,17 +60,22 @@ class DialInClient(Process):
             sub_list = SubscriptionList(subscription=subs, mode=self.stream_mode, encoding=2)
             sub_request = SubscribeRequest(subscribe=sub_list)
             req_iterator = self.sub_to_path(sub_request)
-            batch_list = []
             for response in self.gnmi_stub.Subscribe(req_iterator, metadata=self._metadata):
-                if response.error:
-                    self.log.error(response.error)
+                if response.error.message:
+                    self.log.error("Response had error")
+                    self.log.error(response)
+                    self.log.error(response.error.message)
+                    self.log.error(response.error.code)
+                    self._connected.value = False
                     exit(1)
-                json_response = json_format.MessageToJson(response)
-                json_response = json.loads(json_response)
-                json_response["node"] = node
-                self.queue.put_nowait(json_response)
+                elif response.sync_response:
+                    self.log.info("Got all values atleast once")
+                else:
+                    self.queue.put_nowait((response.SerializeToString(),node))
         except Exception as e:
+            self.log.error("Error in Conneciton gNMI")
             self.log.error(e)
+            self.log.error(traceback.print_exc())
             self._connected.value = False
             exit(1)
             

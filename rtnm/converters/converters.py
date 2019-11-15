@@ -2,6 +2,7 @@ from errors.errors import DecodeError
 from protos.telemetry_pb2 import Telemetry
 from google.protobuf import json_format
 from collections import defaultdict
+from protos.gnmi_pb2 import SubscribeResponse
 import json
 import datetime
 import sys
@@ -39,6 +40,7 @@ class DataConverter(object):
             formatted_json_segments = [x for x in formatted_json_segments if x is not None]
             formatted_json_segments = [item for sublist in formatted_json_segments
                                        for item in sublist]
+            self.log.info(formatted_json_segments)
             return formatted_json_segments
         except Exception as e:
             self.log.error(e)
@@ -85,134 +87,85 @@ class DataConverter(object):
             self.log.error(e)
             self.log.error(item)
 
-    '''
-        def process_gnmi(self, batch_list):
+    def process_gnmi(self):
+        decoded_responses = []
         formatted_json_segments = []
-        for segment in batch_list:
-            header = segment["update"]
-            timestamp = header["timestamp"]
-            index, keys, encode_path = process_header(header["prefix"])
-            content = parse_gnmi(header["update"])
-            formatted_json_segments.append({'_index': index, 'keys': keys, 'content': content,
-                                            'encode_path': encode_path, 'host': node,
-                                            'timestamp': int(timestamp)/1000000})
+        for gpb in self.batch_list:
+            sr = SubscribeResponse()
+            sr.ParseFromString(gpb[0])
+            decoded_responses.append([sr,gpb[1]])
+            del sr
+        for sub_response in decoded_responses:
+            keys, encode_path = self.process_header(sub_response[0].update.prefix)
+            index = encode_path.replace('/', '-').lower().replace(':', '-') + '-gnmi-' + get_date()
+            timestamp = sub_response[0].update.timestamp
+            content = self.parse_gnmi(sub_response[0].update)
+            output = {'_index': index, 'keys': keys, 'content': content,
+                                            'encode_path': encode_path, 'host': sub_response[1],
+                                            '@timestamp': int(timestamp)/1000000}
+            
+            formatted_json_segments.append(json.loads(json.dumps(output)))
+            self.log.info(formatted_json_segments)
         return formatted_json_segments
-    def get_value(self, val_dict):
-        for key, value in val_dict.items():
-            if 'string' in key:
-                return str(value)
-            elif 'bool' in key:
-                return bool(value)
-            elif 'leaflistVal' in key:
-                return get_value(value['element'][0])
-            elif 'int' in key:
-                return int(value)
-            else:
-                return value
-
-
-    def parse_gnmi(self, update):
-        rc_dict = [{}]
-        for path in update:
-            current_level = rc_dict
-            for index, elements in enumerate(path['path']['elem']):
-                if 'key' in list(elements.keys()):
-                    key = list(elements['key'].keys())[0]
-                    value = list(elements['key'].values())[0]
-                    current_level[0][key] = value
-                if elements['name'] in current_level[0]:
-                    current_level = current_level[0][elements['name']]
-                else:
-                    if index == len(path['path']['elem'])-1:
-                        current_level[0][elements['name']] = get_value(path['val'])
-                    else:
-                        current_level[0][elements['name']] = [{}]
-                        current_level = current_level[0][elements['name']]
-            return rc_dict
-
 
     def process_header(self, header):
-        index = header["origin"].lower()
-        keys = []
-        elem_str_list = []
-        for elem in header["elem"]:
-            for key, value in elem.items():
-                if key == "name":
-                    elem_str_list.append(elem[key])
-                else:
-                    keys.append(elem[key])
-                    rc_keys = {}
-                    for elem_dict in keys:
-                        rc_keys.update(elem_dict)
-                        encode_path = header["origin"] + ":" + "/".join(elem_str_list)
-                        index = index + "/" + '-'.join(elem_str_list) + '-gnmi-' + get_date()
-                        return index, [rc_keys], encode_path
-
-
-    def get_date(self):
-        now = datetime.datetime.now()
-        month = f"{now.month:02d}"
-        day = f"{now.day:02d}"
-        return '.'.join([str(now.year), month, day])
+        index = header.origin
+        keys = {}
+        encode_path = []
+        for elem in header.elem:
+            encode_path.append(elem.name)
+            if elem.key:
+                keys.update(elem.key)
+        return keys, f"{index}:{'/'.join(encode_path)}"
         
-        def convert_data(self):
-            try:
-                converted_decode_segments = process_batch_list(batch_list, self.encoding)
-            except Exception as e:
-                process_logger.error(e)
-                process_logger.error(traceback.format_exc())
-                return False
+    def parse_gnmi(self, notifications):
+        content_list = []
+        for update in notifications.update:
+            value = self.get_value(update.val)
+            content_list.append(self.flatten(update.path, value))
+        rc = self.convert_to_json(content_list)
+        return json.loads(json.dumps(rc))
 
-            # Sort all segments by index
-            for converted_decode_segment in converted_decode_segments:
-                if not converted_decode_segment["_index"] in sorted_by_index.keys():
-                    sorted_by_index[converted_decode_segment["_index"]] = [converted_decode_segment]
+    def convert_to_json(self, content_list):
+        rc = defaultdict(list)
+        for content in content_list:
+            self.convert_to_json_sub(content, rc)
+        return rc
+
+    def convert_to_json_sub(self, clist, rc):
+        if len(clist) == 2:
+            if type(rc) is list:
+                if rc == []:
+                    temp = defaultdict(list)
+                    temp[clist[0]] = clist[1]
+                    return temp
                 else:
-                    sorted_by_index[converted_decode_segment["_index"]].append(converted_decode_segment)
-                    # Bulk upload each index to elasticsearch
-                    for index in sorted_by_index.keys():
-        index_url = f"http://{args.elastic_server}:9200/{index}"
-        index_list = populate_index_list(args.elastic_server, process_logger)
-        if index_list == False:
-            process_logger.error("Unable to populate index list")
-            return False
-        if index not in index_list:
-            with lock:
+                    rc = rc[0]
+                    if clist[0] in rc:
+                        temp = [rc[clist[0]]]
+                        temp.append(clist[1])
+                        rc[clist[0]] = temp
+                    else:
+                        rc.update({clist[0]:clist[1]})
+            else:
+                rc[clist[0]] = clist[1]
+        else:
+            if type(rc) is list:
+                if not rc == []:
+                    rc = rc[0]
+                else:
+                    rc.append(defaultdict(list))
+                    rc = rc[0]
+            rc[clist[0]].append(self.convert_to_json_sub(clist[1:],rc[clist[0]]))
+            rc[clist[0]] = [x for x in rc[clist[0]] if x]
+    def get_value(self, type_value):
+        value_type = type_value.WhichOneof("value")
+        return getattr(type_value,value_type)
 
-                index_list = populate_index_list(args.elastic_server, process_logger)
-                if index_list == False:
-                    process_logger.error("Unable to repopulate index list")
-                    return False
-
-                if index not in index_list:
-                    process_logger.info('Acciqured lock to put index in elasticsearch')
-                    headers = {'Content-Type': "application/json"}
-                    mapping = {"settings": {"index.mapping.total_fields.limit": 2000}, "mappings": {"nodes": {
-                        "properties": {"type": {"type": "keyword"}, "keys": {"type": "object"},
-                                       "content": {"type": "object"}, "timestamp": {"type": "date"}}}}}
-                    index_put_response = request("PUT", index_url, headers=headers, json=mapping)
-                    if not index_put_response.status_code == 200:
-                        process_logger.error("Error when creating index")
-                        process_logger.error(index_put_response.status_code)
-                        process_logger.error(index_put_response.json())
-                        return False
-                    index_list.append(index)
-        data_url = f"http://{args.elastic_server}:9200/_bulk"
-        segment_list = sorted_by_index[index]
-        elastic_index = {'index': {'_index': f'{index}', '_type': 'nodes'}}
-        payload_list = [elastic_index]
-        for segment in segment_list:
-            segment.pop('_index', None)
-            payload_list.append(segment)
-            payload_list.append(elastic_index)
-        payload_list.pop()
-        data_to_post = '\n'.join(json.dumps(d) for d in payload_list)
-        data_to_post += '\n'
-        headers = {'Content-Type': "application/x-ndjson"}
-        reply = request("POST", data_url, data=data_to_post, headers=headers)
-        if reply.json()['errors']:
-            process_logger.error("Error while uploading in bulk")
-            process_logger.error(reply.json())
-            # process_logger.logger.error(data_to_post)
-            return False
-    '''
+    def flatten(self, path, value):
+        rc = []
+        for elem in path.elem:
+            rc.append(elem.name)
+        rc.append(value)
+        return rc
+                            
