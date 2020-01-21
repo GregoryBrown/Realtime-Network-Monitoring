@@ -11,17 +11,18 @@ from queue import Empty
 from ctypes import c_bool
 from tornado.ioloop import IOLoop
 from tornado.netutil import bind_sockets
-from tornado.process import fork_processes
+from tornado.process import fork_processes, task_id
 from databases.databases import ElasticSearchUploader
 from loggers.loggers import init_logs, MultiProcessQueueLogger
 from converters.converters import DataConverter
 
 
-def start_dial_out(input_args, output):
+def start_dial_out(input_args, output, log_name):
+    #dialout_log = logging.getLogger(log_name)  
     sockets = bind_sockets(int(input_args["port"]), input_args["address"])
     fork_processes(0)
-    path = f"{os.path.dirname(os.path.realpath(__file__))}/logs"
-    tcp_server = TelemetryTCPDialOutServer(output, input_args["batch-size"], path)
+    #path = f"{os.path.dirname(os.path.realpath(__file__))}/logs"
+    tcp_server = TelemetryTCPDialOutServer(output, input_args["batch-size"], log_name)
     tcp_server.add_sockets(sockets)
     tcp_server.log.info(f"Starting listener on {input_args['address']}:{input_args['port']}")
     IOLoop.current().start()
@@ -122,7 +123,7 @@ def main():
                 inputs[client]["debug"] = args.debug
                 if inputs[client]["io"] == "out":
                     rtnm_log.logger.info(f"Starting dial out client [{client}]")
-                    processes.append(Process(target=start_dial_out, args=(inputs[client], outputs,), name=client))
+                    processes.append(Process(target=start_dial_out, args=(inputs[client], output, log_name,), name=client))
                 else:
                     rtnm_log.logger.info(f"Starting dial in client [{client}]")
                     processes.append(Process(target=start_dial_in_sub,

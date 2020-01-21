@@ -40,7 +40,8 @@ class DataConverter(object):
             formatted_json_segments = [x for x in formatted_json_segments if x is not None]
             formatted_json_segments = [item for sublist in formatted_json_segments
                                        for item in sublist]
-            self.log.info(formatted_json_segments)
+            #self.log.info("CISCO ENCODING")
+            #self.log.info(formatted_json_segments)
             return formatted_json_segments
         except Exception as e:
             self.log.error(e)
@@ -100,12 +101,13 @@ class DataConverter(object):
             index = encode_path.replace('/', '-').lower().replace(':', '-') + '-gnmi-' + get_date()
             timestamp = sub_response[0].update.timestamp
             content = self.parse_gnmi(sub_response[0].update)
-            output = {'_index': index, 'keys': keys, 'content': content,
+            output = {'_index': index, 'keys': [keys], 'content': [content],
                                             'encode_path': encode_path, 'host': sub_response[1],
                                             '@timestamp': int(timestamp)/1000000}
             
             formatted_json_segments.append(json.loads(json.dumps(output)))
-            self.log.info(formatted_json_segments)
+            #self.log.info("GNMI ENCODING")
+            #self.log.info(formatted_json_segments)
         return formatted_json_segments
 
     def process_header(self, header):

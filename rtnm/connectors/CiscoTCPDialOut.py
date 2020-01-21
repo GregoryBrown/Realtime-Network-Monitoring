@@ -13,34 +13,40 @@ from tornado import gen
 from struct import Struct, unpack
 from errors.errors import GetIndexListError, PostDataError, PutIndexError
 from converters.converters import DataConverter
+from aiohttp import ClientSession
 
 class TelemetryTCPDialOutServer(TCPServer):
-    def __init__(self, output, batch_size, path):
+    def __init__(self, output, batch_size, log_name):
         try:
             super().__init__()
             self.batch_size = int(batch_size)
             self.url = f"http://{output['address']}:{output['port']}"
             self.lock = Lock()
             AsyncHTTPClient.configure(None, max_clients=1000)
-            self.http_client = AsyncHTTPClient()
+            #self.http_client = AsyncHTTPClient()
             self.index_list = None
-            self.log = init_logs([f"{current_process().name}-{task_id()}.log"], path)
+            #self.log = init_logs([f"{current_process().name}-{task_id()}.log"], path)
+            self.log = logging.getLogger(log_name) 
         except Exception as e:
             print(e)
+            print("Failed in init code")
             exit(1)
-
+    
     async def get_index_list(self):
         try:
             index_list = []
-            request = HTTPRequest(url=f"{self.url}/*", connect_timeout=40.0, request_timeout=40.0)
-            response = await self.http_client.fetch(request)
-            response = json.loads(response.body.decode())
+            async with ClientSession() as session:
+                async with session.get("http://httpbin.org/headers") as r:
+                    response = await r.json()
+            #request = HTTPRequest(url=f"{self.url}/*", connect_timeout=40.0, request_timeout=40.0)
+            #response = await self.http_client.fetch(request)
+            #response = json.loads(response.body.decode())
             for key in response:
                 if not key.startswith('.'):
                     index_list.append(key)
             return index_list
         except Exception as e:
-            raise GetIndexListError(response.code, str(e), "Got Exception while trying to get index list")
+            raise GetIndexListError(response.status, str(e), "Got Exception while trying to get index list")
 
     async def post_data(self, data_to_post):
         try:
@@ -104,7 +110,8 @@ class TelemetryTCPDialOutServer(TCPServer):
                         msg_data += packet
                     batch_list.append(msg_data)
                 sorted_by_index = {}
-                converted_decode_segments = process_cisco_encoding(batch_list)
+                data_converter = DataConverter(batch_list, self.log, "cisco-ems")
+                converted_decode_segments = data_converter.process_batch_list()
                 if converted_decode_segments is None:
                     self.log.error("Error parsing and decoding message")
                 else:
