@@ -32,15 +32,9 @@ _COMMITRESULT = _descriptor.EnumDescriptor(
     filename=None,
     file=DESCRIPTOR,
     values=[
-        _descriptor.EnumValueDescriptor(
-            name="CHANGE", index=0, number=0, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="NO_CHANGE", index=1, number=1, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="FAIL", index=2, number=2, serialized_options=None, type=None
-        ),
+        _descriptor.EnumValueDescriptor(name="CHANGE", index=0, number=0, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="NO_CHANGE", index=1, number=1, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="FAIL", index=2, number=2, serialized_options=None, type=None),
     ],
     containing_type=None,
     serialized_options=None,

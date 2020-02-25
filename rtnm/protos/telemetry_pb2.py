@@ -223,18 +223,10 @@ _TELEMETRY = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
         _descriptor.OneofDescriptor(
-            name="node_id",
-            full_name="telemetry.Telemetry.node_id",
-            index=0,
-            containing_type=None,
-            fields=[],
+            name="node_id", full_name="telemetry.Telemetry.node_id", index=0, containing_type=None, fields=[],
         ),
         _descriptor.OneofDescriptor(
-            name="subscription",
-            full_name="telemetry.Telemetry.subscription",
-            index=1,
-            containing_type=None,
-            fields=[],
+            name="subscription", full_name="telemetry.Telemetry.subscription", index=1, containing_type=None, fields=[],
         ),
     ],
     serialized_start=31,
@@ -620,73 +612,29 @@ _TELEMETRYROWGPB = _descriptor.Descriptor(
 
 _TELEMETRY.fields_by_name["data_gpbkv"].message_type = _TELEMETRYFIELD
 _TELEMETRY.fields_by_name["data_gpb"].message_type = _TELEMETRYGPBTABLE
-_TELEMETRY.oneofs_by_name["node_id"].fields.append(
-    _TELEMETRY.fields_by_name["node_id_str"]
-)
-_TELEMETRY.fields_by_name["node_id_str"].containing_oneof = _TELEMETRY.oneofs_by_name[
-    "node_id"
-]
-_TELEMETRY.oneofs_by_name["subscription"].fields.append(
-    _TELEMETRY.fields_by_name["subscription_id_str"]
-)
-_TELEMETRY.fields_by_name[
-    "subscription_id_str"
-].containing_oneof = _TELEMETRY.oneofs_by_name["subscription"]
+_TELEMETRY.oneofs_by_name["node_id"].fields.append(_TELEMETRY.fields_by_name["node_id_str"])
+_TELEMETRY.fields_by_name["node_id_str"].containing_oneof = _TELEMETRY.oneofs_by_name["node_id"]
+_TELEMETRY.oneofs_by_name["subscription"].fields.append(_TELEMETRY.fields_by_name["subscription_id_str"])
+_TELEMETRY.fields_by_name["subscription_id_str"].containing_oneof = _TELEMETRY.oneofs_by_name["subscription"]
 _TELEMETRYFIELD.fields_by_name["fields"].message_type = _TELEMETRYFIELD
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["bytes_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "bytes_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["string_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "string_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["bool_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "bool_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["uint32_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "uint32_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["uint64_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "uint64_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["sint32_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "sint32_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["sint64_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "sint64_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["double_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "double_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
-_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(
-    _TELEMETRYFIELD.fields_by_name["float_value"]
-)
-_TELEMETRYFIELD.fields_by_name[
-    "float_value"
-].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["bytes_value"])
+_TELEMETRYFIELD.fields_by_name["bytes_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["string_value"])
+_TELEMETRYFIELD.fields_by_name["string_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["bool_value"])
+_TELEMETRYFIELD.fields_by_name["bool_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["uint32_value"])
+_TELEMETRYFIELD.fields_by_name["uint32_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["uint64_value"])
+_TELEMETRYFIELD.fields_by_name["uint64_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["sint32_value"])
+_TELEMETRYFIELD.fields_by_name["sint32_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["sint64_value"])
+_TELEMETRYFIELD.fields_by_name["sint64_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["double_value"])
+_TELEMETRYFIELD.fields_by_name["double_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
+_TELEMETRYFIELD.oneofs_by_name["value_by_type"].fields.append(_TELEMETRYFIELD.fields_by_name["float_value"])
+_TELEMETRYFIELD.fields_by_name["float_value"].containing_oneof = _TELEMETRYFIELD.oneofs_by_name["value_by_type"]
 _TELEMETRYGPBTABLE.fields_by_name["row"].message_type = _TELEMETRYROWGPB
 DESCRIPTOR.message_types_by_name["Telemetry"] = _TELEMETRY
 DESCRIPTOR.message_types_by_name["TelemetryField"] = _TELEMETRYFIELD

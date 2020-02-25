@@ -32,15 +32,9 @@ _EXTENSIONID = _descriptor.EnumDescriptor(
     filename=None,
     file=DESCRIPTOR,
     values=[
+        _descriptor.EnumValueDescriptor(name="EID_UNSET", index=0, number=0, serialized_options=None, type=None),
         _descriptor.EnumValueDescriptor(
-            name="EID_UNSET", index=0, number=0, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="EID_EXPERIMENTAL",
-            index=1,
-            number=999,
-            serialized_options=None,
-            type=None,
+            name="EID_EXPERIMENTAL", index=1, number=999, serialized_options=None, type=None,
         ),
     ],
     containing_type=None,
@@ -108,11 +102,7 @@ _EXTENSION = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
         _descriptor.OneofDescriptor(
-            name="ext",
-            full_name="gnmi_ext.Extension.ext",
-            index=0,
-            containing_type=None,
-            fields=[],
+            name="ext", full_name="gnmi_ext.Extension.ext", index=0, containing_type=None, fields=[],
         ),
     ],
     serialized_start=29,
@@ -331,18 +321,10 @@ _ROLE = _descriptor.Descriptor(
 
 _EXTENSION.fields_by_name["registered_ext"].message_type = _REGISTEREDEXTENSION
 _EXTENSION.fields_by_name["master_arbitration"].message_type = _MASTERARBITRATION
-_EXTENSION.oneofs_by_name["ext"].fields.append(
-    _EXTENSION.fields_by_name["registered_ext"]
-)
-_EXTENSION.fields_by_name[
-    "registered_ext"
-].containing_oneof = _EXTENSION.oneofs_by_name["ext"]
-_EXTENSION.oneofs_by_name["ext"].fields.append(
-    _EXTENSION.fields_by_name["master_arbitration"]
-)
-_EXTENSION.fields_by_name[
-    "master_arbitration"
-].containing_oneof = _EXTENSION.oneofs_by_name["ext"]
+_EXTENSION.oneofs_by_name["ext"].fields.append(_EXTENSION.fields_by_name["registered_ext"])
+_EXTENSION.fields_by_name["registered_ext"].containing_oneof = _EXTENSION.oneofs_by_name["ext"]
+_EXTENSION.oneofs_by_name["ext"].fields.append(_EXTENSION.fields_by_name["master_arbitration"])
+_EXTENSION.fields_by_name["master_arbitration"].containing_oneof = _EXTENSION.oneofs_by_name["ext"]
 _REGISTEREDEXTENSION.fields_by_name["id"].enum_type = _EXTENSIONID
 _MASTERARBITRATION.fields_by_name["role"].message_type = _ROLE
 _MASTERARBITRATION.fields_by_name["election_id"].message_type = _UINT128

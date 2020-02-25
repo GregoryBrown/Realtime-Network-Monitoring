@@ -42,21 +42,11 @@ _ENCODING = _descriptor.EnumDescriptor(
     filename=None,
     file=DESCRIPTOR,
     values=[
-        _descriptor.EnumValueDescriptor(
-            name="JSON", index=0, number=0, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="BYTES", index=1, number=1, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="PROTO", index=2, number=2, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="ASCII", index=3, number=3, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="JSON_IETF", index=4, number=4, serialized_options=None, type=None
-        ),
+        _descriptor.EnumValueDescriptor(name="JSON", index=0, number=0, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="BYTES", index=1, number=1, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="PROTO", index=2, number=2, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="ASCII", index=3, number=3, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="JSON_IETF", index=4, number=4, serialized_options=None, type=None),
     ],
     containing_type=None,
     serialized_options=None,
@@ -72,15 +62,9 @@ _SUBSCRIPTIONMODE = _descriptor.EnumDescriptor(
     filename=None,
     file=DESCRIPTOR,
     values=[
-        _descriptor.EnumValueDescriptor(
-            name="TARGET_DEFINED", index=0, number=0, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="ON_CHANGE", index=1, number=1, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="SAMPLE", index=2, number=2, serialized_options=None, type=None
-        ),
+        _descriptor.EnumValueDescriptor(name="TARGET_DEFINED", index=0, number=0, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="ON_CHANGE", index=1, number=1, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="SAMPLE", index=2, number=2, serialized_options=None, type=None),
     ],
     containing_type=None,
     serialized_options=None,
@@ -125,15 +109,9 @@ _SUBSCRIPTIONLIST_MODE = _descriptor.EnumDescriptor(
     filename=None,
     file=DESCRIPTOR,
     values=[
-        _descriptor.EnumValueDescriptor(
-            name="STREAM", index=0, number=0, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="ONCE", index=1, number=1, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="POLL", index=2, number=2, serialized_options=None, type=None
-        ),
+        _descriptor.EnumValueDescriptor(name="STREAM", index=0, number=0, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="ONCE", index=1, number=1, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="POLL", index=2, number=2, serialized_options=None, type=None),
     ],
     containing_type=None,
     serialized_options=None,
@@ -148,18 +126,10 @@ _UPDATERESULT_OPERATION = _descriptor.EnumDescriptor(
     filename=None,
     file=DESCRIPTOR,
     values=[
-        _descriptor.EnumValueDescriptor(
-            name="INVALID", index=0, number=0, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="DELETE", index=1, number=1, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="REPLACE", index=2, number=2, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="UPDATE", index=3, number=3, serialized_options=None, type=None
-        ),
+        _descriptor.EnumValueDescriptor(name="INVALID", index=0, number=0, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="DELETE", index=1, number=1, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="REPLACE", index=2, number=2, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="UPDATE", index=3, number=3, serialized_options=None, type=None),
     ],
     containing_type=None,
     serialized_options=None,
@@ -174,18 +144,10 @@ _GETREQUEST_DATATYPE = _descriptor.EnumDescriptor(
     filename=None,
     file=DESCRIPTOR,
     values=[
-        _descriptor.EnumValueDescriptor(
-            name="ALL", index=0, number=0, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="CONFIG", index=1, number=1, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="STATE", index=2, number=2, serialized_options=None, type=None
-        ),
-        _descriptor.EnumValueDescriptor(
-            name="OPERATIONAL", index=3, number=3, serialized_options=None, type=None
-        ),
+        _descriptor.EnumValueDescriptor(name="ALL", index=0, number=0, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="CONFIG", index=1, number=1, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="STATE", index=2, number=2, serialized_options=None, type=None),
+        _descriptor.EnumValueDescriptor(name="OPERATIONAL", index=3, number=3, serialized_options=None, type=None),
     ],
     containing_type=None,
     serialized_options=None,
@@ -668,11 +630,7 @@ _TYPEDVALUE = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
         _descriptor.OneofDescriptor(
-            name="value",
-            full_name="gnmi.TypedValue.value",
-            index=0,
-            containing_type=None,
-            fields=[],
+            name="value", full_name="gnmi.TypedValue.value", index=0, containing_type=None, fields=[],
         ),
     ],
     serialized_start=370,
@@ -1203,11 +1161,7 @@ _SUBSCRIBEREQUEST = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
         _descriptor.OneofDescriptor(
-            name="request",
-            full_name="gnmi.SubscribeRequest.request",
-            index=0,
-            containing_type=None,
-            fields=[],
+            name="request", full_name="gnmi.SubscribeRequest.request", index=0, containing_type=None, fields=[],
         ),
     ],
     serialized_start=1165,
@@ -1324,11 +1278,7 @@ _SUBSCRIBERESPONSE = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
         _descriptor.OneofDescriptor(
-            name="response",
-            full_name="gnmi.SubscribeResponse.response",
-            index=0,
-            containing_type=None,
-            fields=[],
+            name="response", full_name="gnmi.SubscribeResponse.response", index=0, containing_type=None, fields=[],
         ),
     ],
     serialized_start=1354,
@@ -2498,83 +2448,33 @@ _UPDATE.fields_by_name["value"].message_type = _VALUE
 _UPDATE.fields_by_name["val"].message_type = _TYPEDVALUE
 _TYPEDVALUE.fields_by_name["decimal_val"].message_type = _DECIMAL64
 _TYPEDVALUE.fields_by_name["leaflist_val"].message_type = _SCALARARRAY
-_TYPEDVALUE.fields_by_name[
-    "any_val"
-].message_type = google_dot_protobuf_dot_any__pb2._ANY
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["string_val"]
-)
-_TYPEDVALUE.fields_by_name["string_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
+_TYPEDVALUE.fields_by_name["any_val"].message_type = google_dot_protobuf_dot_any__pb2._ANY
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["string_val"])
+_TYPEDVALUE.fields_by_name["string_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
 _TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["int_val"])
-_TYPEDVALUE.fields_by_name["int_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["uint_val"]
-)
-_TYPEDVALUE.fields_by_name["uint_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["bool_val"]
-)
-_TYPEDVALUE.fields_by_name["bool_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["bytes_val"]
-)
-_TYPEDVALUE.fields_by_name["bytes_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["float_val"]
-)
-_TYPEDVALUE.fields_by_name["float_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["decimal_val"]
-)
-_TYPEDVALUE.fields_by_name["decimal_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["leaflist_val"]
-)
-_TYPEDVALUE.fields_by_name[
-    "leaflist_val"
-].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.fields_by_name["int_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["uint_val"])
+_TYPEDVALUE.fields_by_name["uint_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["bool_val"])
+_TYPEDVALUE.fields_by_name["bool_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["bytes_val"])
+_TYPEDVALUE.fields_by_name["bytes_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["float_val"])
+_TYPEDVALUE.fields_by_name["float_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["decimal_val"])
+_TYPEDVALUE.fields_by_name["decimal_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["leaflist_val"])
+_TYPEDVALUE.fields_by_name["leaflist_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
 _TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["any_val"])
-_TYPEDVALUE.fields_by_name["any_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["json_val"]
-)
-_TYPEDVALUE.fields_by_name["json_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["json_ietf_val"]
-)
-_TYPEDVALUE.fields_by_name[
-    "json_ietf_val"
-].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["ascii_val"]
-)
-_TYPEDVALUE.fields_by_name["ascii_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
-_TYPEDVALUE.oneofs_by_name["value"].fields.append(
-    _TYPEDVALUE.fields_by_name["proto_bytes"]
-)
-_TYPEDVALUE.fields_by_name["proto_bytes"].containing_oneof = _TYPEDVALUE.oneofs_by_name[
-    "value"
-]
+_TYPEDVALUE.fields_by_name["any_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["json_val"])
+_TYPEDVALUE.fields_by_name["json_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["json_ietf_val"])
+_TYPEDVALUE.fields_by_name["json_ietf_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["ascii_val"])
+_TYPEDVALUE.fields_by_name["ascii_val"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
+_TYPEDVALUE.oneofs_by_name["value"].fields.append(_TYPEDVALUE.fields_by_name["proto_bytes"])
+_TYPEDVALUE.fields_by_name["proto_bytes"].containing_oneof = _TYPEDVALUE.oneofs_by_name["value"]
 _PATH.fields_by_name["elem"].message_type = _PATHELEM
 _PATHELEM_KEYENTRY.containing_type = _PATHELEM
 _PATHELEM.fields_by_name["key"].message_type = _PATHELEM_KEYENTRY
@@ -2585,45 +2485,21 @@ _SUBSCRIBEREQUEST.fields_by_name["subscribe"].message_type = _SUBSCRIPTIONLIST
 _SUBSCRIBEREQUEST.fields_by_name["poll"].message_type = _POLL
 _SUBSCRIBEREQUEST.fields_by_name["aliases"].message_type = _ALIASLIST
 _SUBSCRIBEREQUEST.fields_by_name["extension"].message_type = gnmi__ext__pb2._EXTENSION
-_SUBSCRIBEREQUEST.oneofs_by_name["request"].fields.append(
-    _SUBSCRIBEREQUEST.fields_by_name["subscribe"]
-)
-_SUBSCRIBEREQUEST.fields_by_name[
-    "subscribe"
-].containing_oneof = _SUBSCRIBEREQUEST.oneofs_by_name["request"]
-_SUBSCRIBEREQUEST.oneofs_by_name["request"].fields.append(
-    _SUBSCRIBEREQUEST.fields_by_name["poll"]
-)
-_SUBSCRIBEREQUEST.fields_by_name[
-    "poll"
-].containing_oneof = _SUBSCRIBEREQUEST.oneofs_by_name["request"]
-_SUBSCRIBEREQUEST.oneofs_by_name["request"].fields.append(
-    _SUBSCRIBEREQUEST.fields_by_name["aliases"]
-)
-_SUBSCRIBEREQUEST.fields_by_name[
-    "aliases"
-].containing_oneof = _SUBSCRIBEREQUEST.oneofs_by_name["request"]
+_SUBSCRIBEREQUEST.oneofs_by_name["request"].fields.append(_SUBSCRIBEREQUEST.fields_by_name["subscribe"])
+_SUBSCRIBEREQUEST.fields_by_name["subscribe"].containing_oneof = _SUBSCRIBEREQUEST.oneofs_by_name["request"]
+_SUBSCRIBEREQUEST.oneofs_by_name["request"].fields.append(_SUBSCRIBEREQUEST.fields_by_name["poll"])
+_SUBSCRIBEREQUEST.fields_by_name["poll"].containing_oneof = _SUBSCRIBEREQUEST.oneofs_by_name["request"]
+_SUBSCRIBEREQUEST.oneofs_by_name["request"].fields.append(_SUBSCRIBEREQUEST.fields_by_name["aliases"])
+_SUBSCRIBEREQUEST.fields_by_name["aliases"].containing_oneof = _SUBSCRIBEREQUEST.oneofs_by_name["request"]
 _SUBSCRIBERESPONSE.fields_by_name["update"].message_type = _NOTIFICATION
 _SUBSCRIBERESPONSE.fields_by_name["error"].message_type = _ERROR
 _SUBSCRIBERESPONSE.fields_by_name["extension"].message_type = gnmi__ext__pb2._EXTENSION
-_SUBSCRIBERESPONSE.oneofs_by_name["response"].fields.append(
-    _SUBSCRIBERESPONSE.fields_by_name["update"]
-)
-_SUBSCRIBERESPONSE.fields_by_name[
-    "update"
-].containing_oneof = _SUBSCRIBERESPONSE.oneofs_by_name["response"]
-_SUBSCRIBERESPONSE.oneofs_by_name["response"].fields.append(
-    _SUBSCRIBERESPONSE.fields_by_name["sync_response"]
-)
-_SUBSCRIBERESPONSE.fields_by_name[
-    "sync_response"
-].containing_oneof = _SUBSCRIBERESPONSE.oneofs_by_name["response"]
-_SUBSCRIBERESPONSE.oneofs_by_name["response"].fields.append(
-    _SUBSCRIBERESPONSE.fields_by_name["error"]
-)
-_SUBSCRIBERESPONSE.fields_by_name[
-    "error"
-].containing_oneof = _SUBSCRIBERESPONSE.oneofs_by_name["response"]
+_SUBSCRIBERESPONSE.oneofs_by_name["response"].fields.append(_SUBSCRIBERESPONSE.fields_by_name["update"])
+_SUBSCRIBERESPONSE.fields_by_name["update"].containing_oneof = _SUBSCRIBERESPONSE.oneofs_by_name["response"]
+_SUBSCRIBERESPONSE.oneofs_by_name["response"].fields.append(_SUBSCRIBERESPONSE.fields_by_name["sync_response"])
+_SUBSCRIBERESPONSE.fields_by_name["sync_response"].containing_oneof = _SUBSCRIBERESPONSE.oneofs_by_name["response"]
+_SUBSCRIBERESPONSE.oneofs_by_name["response"].fields.append(_SUBSCRIBERESPONSE.fields_by_name["error"])
+_SUBSCRIBERESPONSE.fields_by_name["error"].containing_oneof = _SUBSCRIBERESPONSE.oneofs_by_name["response"]
 _SUBSCRIPTIONLIST.fields_by_name["prefix"].message_type = _PATH
 _SUBSCRIPTIONLIST.fields_by_name["subscription"].message_type = _SUBSCRIPTION
 _SUBSCRIPTIONLIST.fields_by_name["qos"].message_type = _QOSMARKING

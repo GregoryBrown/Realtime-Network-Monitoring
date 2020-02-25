@@ -34,18 +34,12 @@ class DataConverter(object):
             for segment in self.batch_list:
                 telemetry_pb = Telemetry()
                 telemetry_pb.ParseFromString(segment)
-                json_segments.append(
-                    json.loads(json_format.MessageToJson(telemetry_pb))
-                )
+                json_segments.append(json.loads(json_format.MessageToJson(telemetry_pb)))
             for segment in json_segments:
                 print(segment)
                 formatted_json_segments.append(self.parse_cisco_encoding(segment))
-            formatted_json_segments = [
-                x for x in formatted_json_segments if x is not None
-            ]
-            formatted_json_segments = [
-                item for sublist in formatted_json_segments for item in sublist
-            ]
+            formatted_json_segments = [x for x in formatted_json_segments if x is not None]
+            formatted_json_segments = [item for sublist in formatted_json_segments for item in sublist]
             # self.log.info("CISCO ENCODING")
             # self.log.info(formatted_json_segments)
             return formatted_json_segments
@@ -63,10 +57,7 @@ class DataConverter(object):
                         output["host"] = telemetry_json["nodeIdStr"]
                         output["@timestamp"] = data["timestamp"]
                         output["_index"] = (
-                            telemetry_json["encodingPath"]
-                            .replace("/", "-")
-                            .lower()
-                            .replace(":", "-")
+                            telemetry_json["encodingPath"].replace("/", "-").lower().replace(":", "-")
                             + "-"
                             + get_date()
                         )
@@ -82,9 +73,7 @@ class DataConverter(object):
             data_dict = defaultdict(list)
             for item in data:
                 if "fields" in item:
-                    data_dict[item["name"]].append(
-                        self._parse_cisco_data(item["fields"])
-                    )
+                    data_dict[item["name"]].append(self._parse_cisco_data(item["fields"]))
                 else:
                     for key, value in item.items():
                         if "Value" in key:
@@ -113,11 +102,7 @@ class DataConverter(object):
             del sr
         for sub_response in decoded_responses:
             keys, encode_path = self.process_header(sub_response[0].update.prefix)
-            index = (
-                encode_path.replace("/", "-").lower().replace(":", "-")
-                + "-gnmi-"
-                + get_date()
-            )
+            index = encode_path.replace("/", "-").lower().replace(":", "-") + "-gnmi-" + get_date()
             timestamp = sub_response[0].update.timestamp
             content = self.parse_gnmi(sub_response[0].update)
             output = {

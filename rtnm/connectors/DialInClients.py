@@ -75,20 +75,12 @@ class DialInClient(Process):
             subs = []
             for path in self.sensors:
                 subs.append(
-                    Subscription(
-                        path=create_gnmi_path(path),
-                        mode=self.sub_mode,
-                        sample_interval=self.sample_interval,
-                    )
+                    Subscription(path=create_gnmi_path(path), mode=self.sub_mode, sample_interval=self.sample_interval,)
                 )
-            sub_list = SubscriptionList(
-                subscription=subs, mode=self.stream_mode, encoding=2
-            )
+            sub_list = SubscriptionList(subscription=subs, mode=self.stream_mode, encoding=2)
             sub_request = SubscribeRequest(subscribe=sub_list)
             req_iterator = self.sub_to_path(sub_request)
-            for response in self.gnmi_stub.Subscribe(
-                req_iterator, metadata=self._metadata
-            ):
+            for response in self.gnmi_stub.Subscribe(req_iterator, metadata=self._metadata):
                 if response.error.message:
                     self.log.error("Response had error")
                     self.log.error(response)
@@ -111,9 +103,7 @@ class DialInClient(Process):
         try:
             self.cisco_ems_stub = gRPCConfigOperStub(self.channel)
             sub_args = CreateSubsArgs(ReqId=1, encode=3, Subscriptions=self.subs)
-            stream = self.cisco_ems_stub.CreateSubs(
-                sub_args, timeout=self._timeout, metadata=self._metadata
-            )
+            stream = self.cisco_ems_stub.CreateSubs(sub_args, timeout=self._timeout, metadata=self._metadata)
             for segment in stream:
                 if segment.errors:
                     self.log.error(segment.errors)
@@ -157,9 +147,7 @@ class TLSDialInClient(DialInClient):
 
     def connect(self):
         credentials = grpc.ssl_channel_credentials(self._pem)
-        self.channel = grpc.secure_channel(
-            ":".join([self._host, self._port]), credentials, self.options
-        )
+        self.channel = grpc.secure_channel(":".join([self._host, self._port]), credentials, self.options)
         try:
             grpc.channel_ready_future(self.channel).result(timeout=10)
             self.log.info("Connected")

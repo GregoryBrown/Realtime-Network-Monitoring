@@ -16,15 +16,10 @@ class ElasticSearchUploader(object):
             "settings": {"number_of_shards": 1, "number_of_replicas": 2},
             "mappings": {"properties": {"@timestamp": {"type": "date"}}},
         }
-        index_put_response = request(
-            "PUT", f"{self.url}/{index}", headers=headers, json=mapping
-        )
+        index_put_response = request("PUT", f"{self.url}/{index}", headers=headers, json=mapping)
         if not index_put_response.status_code == 200:
             raise PutIndexError(
-                index_put_response.status_code,
-                index_put_response.json(),
-                index,
-                f"PUT failed to upload {index}",
+                index_put_response.status_code, index_put_response.json(), index, f"PUT failed to upload {index}",
             )
         else:
             self.index_list.append(index)
@@ -35,9 +30,7 @@ class ElasticSearchUploader(object):
             get_response = request("GET", f"{self.url}/*")
             if not get_response.status_code == 200:
                 raise GetIndexListError(
-                    get_response.status_code,
-                    get_response.json(),
-                    "GET failed to retrieve all indices",
+                    get_response.status_code, get_response.json(), "GET failed to retrieve all indices",
                 )
             for key in get_response.json():
                 if not key.startswith("."):
@@ -50,15 +43,10 @@ class ElasticSearchUploader(object):
         data_to_post = "\n".join(json.dumps(d) for d in data)
         data_to_post += "\n"
         headers = {"Content-Type": "application/x-ndjson"}
-        post_response = request(
-            "POST", f"{self.url}/_bulk", data=data_to_post, headers=headers
-        )
+        post_response = request("POST", f"{self.url}/_bulk", data=data_to_post, headers=headers)
         if post_response.json()["errors"]:
             raise PostDataError(
-                post_response.status_code,
-                post_response.json(),
-                data_to_post,
-                "POST failed to upload data",
+                post_response.status_code, post_response.json(), data_to_post, "POST failed to upload data",
             )
 
     def upload(self, data_list):

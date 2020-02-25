@@ -41,7 +41,5 @@ def add_gRPCMdtDialoutServicer_to_server(servicer, server):
             response_serializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.SerializeToString,
         ),
     }
-    generic_handler = grpc.method_handlers_generic_handler(
-        "mdt_dialout.gRPCMdtDialout", rpc_method_handlers
-    )
+    generic_handler = grpc.method_handlers_generic_handler("mdt_dialout.gRPCMdtDialout", rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))

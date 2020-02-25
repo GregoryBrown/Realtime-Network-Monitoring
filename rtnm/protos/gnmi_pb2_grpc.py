@@ -108,7 +108,5 @@ def add_gNMIServicer_to_server(servicer, server):
             response_serializer=gnmi__pb2.SubscribeResponse.SerializeToString,
         ),
     }
-    generic_handler = grpc.method_handlers_generic_handler(
-        "gnmi.gNMI", rpc_method_handlers
-    )
+    generic_handler = grpc.method_handlers_generic_handler("gnmi.gNMI", rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))

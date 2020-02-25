@@ -39,9 +39,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             # async with ClientSession() as session:
             #    async with session.get("http://httpbin.org/headers") as r:
             #        response = await r.json()
-            request = HTTPRequest(
-                url=f"{self.url}/*", connect_timeout=40.0, request_timeout=40.0
-            )
+            request = HTTPRequest(url=f"{self.url}/*", connect_timeout=40.0, request_timeout=40.0)
             response = await self.http_client.fetch(request)
             response = json.loads(response.body.decode())
             for key in response:
@@ -49,9 +47,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                     index_list.append(key)
             return index_list
         except Exception as e:
-            raise GetIndexListError(
-                response.status, str(e), "Got Exception while trying to get index list"
-            )
+            raise GetIndexListError(response.status, str(e), "Got Exception while trying to get index list")
 
     async def post_data(self, data_to_post):
         try:
@@ -77,10 +73,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                 raise e
         except Exception as e:
             raise PostDataError(
-                response.code,
-                str(e),
-                data_to_post,
-                "Error while posting data to ElasticSearch",
+                response.code, str(e), data_to_post, "Error while posting data to ElasticSearch",
             )
 
     async def put_index(self, index):
@@ -111,10 +104,7 @@ class TelemetryTCPDialOutServer(TCPServer):
 
         except Exception as e:
             raise PutIndexError(
-                response.code,
-                str(e),
-                index,
-                "Error while putting index to ElasticSearch",
+                response.code, str(e), index, "Error while putting index to ElasticSearch",
             )
 
     async def handle_stream(self, stream, address):
@@ -128,13 +118,7 @@ class TelemetryTCPDialOutServer(TCPServer):
                 batch_list = []
                 while len(batch_list) < self.batch_size:
                     header_data = await stream.read_bytes(_HEADER_SIZE)
-                    (
-                        msg_type,
-                        encode_type,
-                        msg_version,
-                        flags,
-                        msg_length,
-                    ) = _UNPACK_HEADER(header_data)
+                    (msg_type, encode_type, msg_version, flags, msg_length,) = _UNPACK_HEADER(header_data)
                     encoding = {1: "gpb", 2: "json"}[encode_type]
                     # implement json encoding
                     msg_data = b""
@@ -149,23 +133,14 @@ class TelemetryTCPDialOutServer(TCPServer):
                     self.log.error("Error parsing and decoding message")
                 else:
                     for converted_decode_segment in converted_decode_segments:
-                        if (
-                            not converted_decode_segment["_index"]
-                            in sorted_by_index.keys()
-                        ):
-                            sorted_by_index[converted_decode_segment["_index"]] = [
-                                converted_decode_segment
-                            ]
+                        if not converted_decode_segment["_index"] in sorted_by_index.keys():
+                            sorted_by_index[converted_decode_segment["_index"]] = [converted_decode_segment]
                         else:
-                            sorted_by_index[converted_decode_segment["_index"]].append(
-                                converted_decode_segment
-                            )
+                            sorted_by_index[converted_decode_segment["_index"]].append(converted_decode_segment)
                     for index in sorted_by_index.keys():
                         if index not in self.index_list:
                             async with self.lock:
-                                self.log.info(
-                                    "Acquired lock to put index in elasticsearch"
-                                )
+                                self.log.info("Acquired lock to put index in elasticsearch")
                                 put_rc = False
                                 while not put_rc:
                                     self.index_list = await self.get_index_list()
@@ -188,9 +163,7 @@ class TelemetryTCPDialOutServer(TCPServer):
 
         except DecodeError as e:
             self.log.error(e)
-            self.log.error(
-                f"Unable to upload data to Elasticsearch due to decode error"
-            )
+            self.log.error(f"Unable to upload data to Elasticsearch due to decode error")
         except StreamClosedError as e:
             self.log.error(traceback.print_exc())
             self.log.error(e)
@@ -200,9 +173,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.error(e.code)
             self.log.error(e.response)
             self.log.error(e.message)
-            self.log.error(
-                f"Closing connection from {address[0]} due to get index list error"
-            )
+            self.log.error(f"Closing connection from {address[0]} due to get index list error")
             stream.close()
         except PostDataError as e:
             self.log.error(traceback.print_exc())
@@ -210,9 +181,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.error(e.response)
             self.log.error(e.data)
             self.log.error(e.message)
-            self.log.error(
-                f"Closing connection from {address[0]} due to posting data error"
-            )
+            self.log.error(f"Closing connection from {address[0]} due to posting data error")
             stream.close()
         except PutIndexError as e:
             self.log.error(traceback.print_exc())
@@ -220,9 +189,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.error(e.response)
             self.log.error(e.index)
             self.log.error(e.message)
-            self.log.error(
-                f"Closing connection from {address[0]} due to putting index error"
-            )
+            self.log.error(f"Closing connection from {address[0]} due to putting index error")
             stream.close()
         except Exception as e:
             self.log.error(e)

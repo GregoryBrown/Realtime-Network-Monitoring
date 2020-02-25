@@ -64,9 +64,7 @@ class TelemetryTCPDialOutServer(TCPServer):
     async def get_index_list(self, url):
         try:
             indices = []
-            response = await self.http_client.fetch(
-                f"http://{self.elastic_server}:9200/*"
-            )
+            response = await self.http_client.fetch(f"http://{self.elastic_server}:9200/*")
             response = json.loads(response.body.decode())
             for key in response:
                 if not key.startswith("."):
@@ -75,17 +73,13 @@ class TelemetryTCPDialOutServer(TCPServer):
         except HTTPError as e:
             raise e
         except Exception as e:
-            raise GetIndexListError(
-                response.code, str(e), "Got Exception while trying to get index list"
-            )
+            raise GetIndexListError(response.code, str(e), "Got Exception while trying to get index list")
 
     async def post_data(self, data_to_post):
         try:
             headers = {"Content-Type": "application/x-ndjson"}
             url = f"http://{self.elastic_server}:9200/_bulk"
-            request = HTTPRequest(
-                url=url, method="POST", headers=headers, body=data_to_post
-            )
+            request = HTTPRequest(url=url, method="POST", headers=headers, body=data_to_post)
             response = await self.http_client.fetch(request=request)
             return True
         except HTTPError as e:
@@ -94,10 +88,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             return False
         except Exception as e:
             raise PostDataError(
-                response.code,
-                str(e),
-                data_to_post,
-                "Error while posting data to ElasticSearch",
+                response.code, str(e), data_to_post, "Error while posting data to ElasticSearch",
             )
 
     async def put_index(self, index):
@@ -115,19 +106,14 @@ class TelemetryTCPDialOutServer(TCPServer):
                 raise e
         except Exception as e:
             raise PutIndexError(
-                response.code,
-                str(e),
-                index,
-                "Error while putting index to ElasticSearch",
+                response.code, str(e), index, "Error while putting index to ElasticSearch",
             )
 
     def init_log(self, log_name):
         logger = logging.getLogger(log_name)
         file_handler = RotatingFileHandler(log_name, maxBytes=536870912, backupCount=2)
         screen_handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s")
         file_handler.setFormatter(formatter)
         screen_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -143,9 +129,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.info(f"Got Connection from {address[0]}:{address[1]}")
             while not stream.closed():
                 header_data = await stream.read_bytes(HEADER_SIZE)
-                msg_type, encode_type, msg_version, flags, msg_length = _UNPACK_HEADER(
-                    header_data
-                )
+                msg_type, encode_type, msg_version, flags, msg_length = _UNPACK_HEADER(header_data)
                 encoding = {1: "gpb", 2: "json"}[encode_type]
                 msg_data = b""
                 if encode_type == 1:
@@ -156,27 +140,17 @@ class TelemetryTCPDialOutServer(TCPServer):
                 converted_decode_segments = process_cisco_encoding([msg_data])
                 for converted_decode_segment in converted_decode_segments:
                     if not converted_decode_segment["_index"] in sorted_by_index.keys():
-                        sorted_by_index[converted_decode_segment["_index"]] = [
-                            converted_decode_segment
-                        ]
+                        sorted_by_index[converted_decode_segment["_index"]] = [converted_decode_segment]
                     else:
-                        sorted_by_index[converted_decode_segment["_index"]].append(
-                            converted_decode_segment
-                        )
+                        sorted_by_index[converted_decode_segment["_index"]].append(converted_decode_segment)
 
-                index_list = await self.get_index_list(
-                    f"http://{self.elastic_server}:9200/*"
-                )
+                index_list = await self.get_index_list(f"http://{self.elastic_server}:9200/*")
                 for index in sorted_by_index.keys():
                     if index not in index_list:
                         async with self.lock:
-                            index_list = await self.get_index_list(
-                                f"http://{self.elastic_server}:9200/*"
-                            )
+                            index_list = await self.get_index_list(f"http://{self.elastic_server}:9200/*")
                             if index not in index_list:
-                                self.log.info(
-                                    "Acciqured lock to put index in elasticsearch"
-                                )
+                                self.log.info("Acciqured lock to put index in elasticsearch")
                                 put_rc = False
                                 while not put_rc:
                                     put_rc = await self.put_index(index)
@@ -203,9 +177,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.error(e.code)
             self.log.error(e.response)
             self.log.error(e.message)
-            self.log.error(
-                f"Closing connection from {address[0]} due to get index list error"
-            )
+            self.log.error(f"Closing connection from {address[0]} due to get index list error")
             stream.close()
         except PostDataError as e:
             self.log.error(traceback.print_exc())
@@ -213,9 +185,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.error(e.response)
             self.log.error(e.data)
             self.log.error(e.message)
-            self.log.error(
-                f"Closing connection from {address[0]} due to posting data error"
-            )
+            self.log.error(f"Closing connection from {address[0]} due to posting data error")
             stream.close()
         except PutIndexError as e:
             self.log.error(traceback.print_exc())
@@ -223,9 +193,7 @@ class TelemetryTCPDialOutServer(TCPServer):
             self.log.error(e.response)
             self.log.error(e.index)
             self.log.error(e.message)
-            self.log.error(
-                f"Closing connection from {address[0]} due to putting index error"
-            )
+            self.log.error(f"Closing connection from {address[0]} due to putting index error")
             stream.close()
 
         except Exception as e:
@@ -240,11 +208,7 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--host", dest="host", help="host", required=True)
     parser.add_argument("-r", "--port", dest="port", help="port", required=True)
     parser.add_argument(
-        "-e",
-        "--elastic_server",
-        dest="elastic_server",
-        help="Elastic Server",
-        required=True,
+        "-e", "--elastic_server", dest="elastic_server", help="Elastic Server", required=True,
     )
     args = parser.parse_args()
     sockets = bind_sockets(args.port)

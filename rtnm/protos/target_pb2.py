@@ -458,9 +458,7 @@ _CREDENTIALS = _descriptor.Descriptor(
     serialized_end=580,
 )
 
-_CONFIGURATION_REQUESTENTRY.fields_by_name[
-    "value"
-].message_type = gnmi__pb2._SUBSCRIBEREQUEST
+_CONFIGURATION_REQUESTENTRY.fields_by_name["value"].message_type = gnmi__pb2._SUBSCRIBEREQUEST
 _CONFIGURATION_REQUESTENTRY.containing_type = _CONFIGURATION
 _CONFIGURATION_TARGETENTRY.fields_by_name["value"].message_type = _TARGET
 _CONFIGURATION_TARGETENTRY.containing_type = _CONFIGURATION

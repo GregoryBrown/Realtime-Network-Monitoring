@@ -30,18 +30,14 @@ def start_dial_out(input_args, output, log_name):
     # path = f"{os.path.dirname(os.path.realpath(__file__))}/logs"
     tcp_server = TelemetryTCPDialOutServer(output, input_args["batch-size"], log_name)
     tcp_server.add_sockets(sockets)
-    tcp_server.log.info(
-        f"Starting listener on {input_args['address']}:{input_args['port']}"
-    )
+    tcp_server.log.info(f"Starting listener on {input_args['address']}:{input_args['port']}")
     IOLoop.current().start()
 
 
 def process_and_upload_data(batch_list, encoding, log_name, output, index_list, lock):
     processor_log = logging.getLogger(log_name)
     try:
-        es = ElasticSearchUploader(
-            output["address"], output["port"], index_list, lock, processor_log
-        )
+        es = ElasticSearchUploader(output["address"], output["port"], index_list, lock, processor_log)
         converter = DataConverter(batch_list, processor_log, encoding)
         data_list = converter.process_batch_list()
         es.upload(data_list)
@@ -64,22 +60,11 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
             pem = fp.read()
         sub_log.info("Creating TLS Connector")
         client = TLSDialInClient(
-            pem,
-            connected,
-            data_queue,
-            log_name,
-            **input_args,
-            name=f"conn-{current_process().name}",
+            pem, connected, data_queue, log_name, **input_args, name=f"conn-{current_process().name}",
         )
     else:
         sub_log.info("Creating Connector")
-        client = DialInClient(
-            connected,
-            data_queue,
-            log_name,
-            **input_args,
-            name=f"conn-{current_process().name}",
-        )
+        client = DialInClient(connected, data_queue, log_name, **input_args, name=f"conn-{current_process().name}",)
     client.start()
     batch_list = []
     while not client.is_connected() and client.is_alive():
@@ -94,14 +79,7 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
                         sub_log.info(f"Uploading full batch size")
                         pool.apply_async(
                             process_and_upload_data,
-                            (
-                                batch_list,
-                                input_args["format"],
-                                log_name,
-                                output,
-                                index_list,
-                                lock,
-                            ),
+                            (batch_list, input_args["format"], log_name, output, index_list, lock,),
                         )
                         del batch_list
                         batch_list = []
@@ -110,14 +88,7 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
                     sub_log.info(f"Uploading data of length {len(batch_list)}")
                     pool.apply_async(
                         process_and_upload_data,
-                        (
-                            batch_list,
-                            input_args["format"],
-                            log_name,
-                            output,
-                            index_list,
-                            lock,
-                        ),
+                        (batch_list, input_args["format"], log_name, output, index_list, lock,),
                     )
                     del batch_list
                     batch_list = []
@@ -130,43 +101,23 @@ def start_dial_in_sub(input_args, output, lock, index_list, log_name):
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "-s",
-        "--subscription",
-        dest="sub",
-        help="Subscription name used for non gNMI dial-in",
+        "-s", "--subscription", dest="sub", help="Subscription name used for non gNMI dial-in",
     )
     parser.add_argument("-u", "--username", dest="username", help="Username")
     parser.add_argument("-p", "--password", dest="password", help="Password")
     parser.add_argument("-a", "--host", dest="host", help="Host IP")
     parser.add_argument("-r", "--port", dest="port", help="gRPC Port")
     parser.add_argument(
-        "-b",
-        "--batch_size",
-        dest="batch_size",
-        help="Batch size to upload to ElasticSearch",
+        "-b", "--batch_size", dest="batch_size", help="Batch size to upload to ElasticSearch",
     )
-    parser.add_argument(
-        "-e", "--elastic_server", dest="elastic_server", help="ElasticSearch server IP"
-    )
-    parser.add_argument(
-        "-t", "--tls", dest="tls", help="Flag to enable TLS", action="store_true"
-    )
+    parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="ElasticSearch server IP")
+    parser.add_argument("-t", "--tls", dest="tls", help="Flag to enable TLS", action="store_true")
     parser.add_argument("-m", "--pem", dest="pem", help="Pem file used with TLS")
-    parser.add_argument(
-        "-g", "--gnmi", dest="gnmi", help="Flag to enable gNMI", action="store_true"
-    )
-    parser.add_argument(
-        "-l", "--sample", dest="sample", help="Sample poll time for gNMI (ns)"
-    )
-    parser.add_argument(
-        "-i", "--path", dest="path", help="Path for gNMI to subscribe to"
-    )
-    parser.add_argument(
-        "-c", "--config", dest="config", help="Location of the configuration file"
-    )
-    parser.add_argument(
-        "-v", "--verbose", dest="debug", help="Enable debugging", action="store_true"
-    )
+    parser.add_argument("-g", "--gnmi", dest="gnmi", help="Flag to enable gNMI", action="store_true")
+    parser.add_argument("-l", "--sample", dest="sample", help="Sample poll time for gNMI (ns)")
+    parser.add_argument("-i", "--path", dest="path", help="Path for gNMI to subscribe to")
+    parser.add_argument("-c", "--config", dest="config", help="Location of the configuration file")
+    parser.add_argument("-v", "--verbose", dest="debug", help="Enable debugging", action="store_true")
     args = parser.parse_args()
     processes = []
     if args.config:
@@ -189,24 +140,14 @@ def main():
                 if inputs[client]["io"] == "out":
                     rtnm_log.logger.info(f"Starting dial out client [{client}]")
                     processes.append(
-                        Process(
-                            target=start_dial_out,
-                            args=(inputs[client], output, log_name,),
-                            name=client,
-                        )
+                        Process(target=start_dial_out, args=(inputs[client], output, log_name,), name=client,)
                     )
                 else:
                     rtnm_log.logger.info(f"Starting dial in client [{client}]")
                     processes.append(
                         Process(
                             target=start_dial_in_sub,
-                            args=(
-                                inputs[client],
-                                output,
-                                elastic_lock,
-                                index_list,
-                                log_name,
-                            ),
+                            args=(inputs[client], output, elastic_lock, index_list, log_name,),
                             name=client,
                         )
                     )
@@ -219,9 +160,7 @@ def main():
         except IODefinedError:
             parser.error("Need to define both an input and output in the configuraiton")
         except KeyError as e:
-            parser.error(
-                f"Error in the configuration file: No key for {e}.\nCan't parse the config file"
-            )
+            parser.error(f"Error in the configuration file: No key for {e}.\nCan't parse the config file")
         except Exception as e:
             parser.error(f"Error {e}")
     else:

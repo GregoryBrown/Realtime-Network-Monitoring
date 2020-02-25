@@ -33,13 +33,9 @@ def elasticsearch_upload(batch_list, args, lock, log_name):
     # Sort all segments by index
     for converted_decode_segment in converted_decode_segments:
         if not converted_decode_segment["_index"] in sorted_by_index.keys():
-            sorted_by_index[converted_decode_segment["_index"]] = [
-                converted_decode_segment
-            ]
+            sorted_by_index[converted_decode_segment["_index"]] = [converted_decode_segment]
         else:
-            sorted_by_index[converted_decode_segment["_index"]].append(
-                converted_decode_segment
-            )
+            sorted_by_index[converted_decode_segment["_index"]].append(converted_decode_segment)
     # Bulk upload each index to elasticsearch
     for index in sorted_by_index.keys():
         index_url = f"http://{args.elastic_server}:9200/{index}"
@@ -71,9 +67,7 @@ def elasticsearch_upload(batch_list, args, lock, log_name):
                             }
                         },
                     }
-                    index_put_response = request(
-                        "PUT", index_url, headers=headers, json=mapping
-                    )
+                    index_put_response = request("PUT", index_url, headers=headers, json=mapping)
                     if not index_put_response.status_code == 200:
                         process_logger.error("Error when creating index")
                         process_logger.error(index_put_response.status_code)
@@ -109,21 +103,13 @@ def main():
     parser.add_argument("-a", "--host", dest="host", help="host")
     parser.add_argument("-r", "--port", dest="port", help="port")
     parser.add_argument("-b", "--batch_size", dest="batch_size", help="Batch size")
-    parser.add_argument(
-        "-e", "--elastic_server", dest="elastic_server", help="Elastic Server"
-    )
-    parser.add_argument(
-        "-t", "--tls", dest="tls", help="TLS enabled", action="store_true"
-    )
+    parser.add_argument("-e", "--elastic_server", dest="elastic_server", help="Elastic Server")
+    parser.add_argument("-t", "--tls", dest="tls", help="TLS enabled", action="store_true")
     parser.add_argument("-m", "--pem", dest="pem", help="pem file")
-    parser.add_argument(
-        "-g", "--gnmi", dest="gnmi", help="gnmi encoding", action="store_true"
-    )
+    parser.add_argument("-g", "--gnmi", dest="gnmi", help="gnmi encoding", action="store_true")
     parser.add_argument("-l", "--sample", dest="sample", help="sample poll time")
     parser.add_argument("-i", "--path", dest="path", help="path for gnmi support")
-    parser.add_argument(
-        "-c", "--config", dest="config", help="Name of the configuration file"
-    )
+    parser.add_argument("-c", "--config", dest="config", help="Name of the configuration file")
     args = parser.parse_args()
     if args.config == None:
         parser.error("Need to supply a config file")
@@ -168,10 +154,7 @@ def main():
                 if data is not None:
                     batch_list.append(data)
                     if len(batch_list) >= int(args.batch_size):
-                        result = pool.apply_async(
-                            elasticsearch_upload,
-                            (batch_list, args, elastic_lock, log_name,),
-                        )
+                        result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, log_name,),)
                         # print(result.get())
                         # if not result.get():
                         #    break
@@ -184,10 +167,7 @@ def main():
                         f"Flushing data of length {len(batch_list)}, due to timeout, increase batch size "
                         f"by {len(batch_list)}"
                     )
-                    result = pool.apply_async(
-                        elasticsearch_upload,
-                        (batch_list, args, elastic_lock, log_name,),
-                    )
+                    result = pool.apply_async(elasticsearch_upload, (batch_list, args, elastic_lock, log_name,),)
                     # if not result.get():
                     #    break
                     # elasticsearch_upload(batch_list, args, elastic_lock, log_name)
