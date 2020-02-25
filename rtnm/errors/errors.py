@@ -7,6 +7,11 @@ class Error(Exception):
     pass
 
 
+class TelemetryTCPDialOutServerError(Error):
+    """Generic Error for TCP Dial out server"""
+    pass
+
+
 class GetIndexListError(Error):
     """Error while doing a Get request against ES"""
 
