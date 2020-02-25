@@ -5,42 +5,43 @@ import cisco_mdt_dial_out_pb2 as cisco__mdt__dial__out__pb2
 
 
 class gRPCMdtDialoutStub(object):
-  # missing associated documentation comment in .proto file
-  pass
+    # missing associated documentation comment in .proto file
+    pass
 
-  def __init__(self, channel):
-    """Constructor.
+    def __init__(self, channel):
+        """Constructor.
 
     Args:
       channel: A grpc.Channel.
     """
-    self.MdtDialout = channel.stream_stream(
-        '/mdt_dialout.gRPCMdtDialout/MdtDialout',
-        request_serializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.SerializeToString,
-        response_deserializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.FromString,
+        self.MdtDialout = channel.stream_stream(
+            "/mdt_dialout.gRPCMdtDialout/MdtDialout",
+            request_serializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.SerializeToString,
+            response_deserializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.FromString,
         )
 
 
 class gRPCMdtDialoutServicer(object):
-  # missing associated documentation comment in .proto file
-  pass
-
-  def MdtDialout(self, request_iterator, context):
     # missing associated documentation comment in .proto file
     pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
+
+    def MdtDialout(self, request_iterator, context):
+        # missing associated documentation comment in .proto file
+        pass
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
 
 
 def add_gRPCMdtDialoutServicer_to_server(servicer, server):
-  rpc_method_handlers = {
-      'MdtDialout': grpc.stream_stream_rpc_method_handler(
-          servicer.MdtDialout,
-          request_deserializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.FromString,
-          response_serializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.SerializeToString,
-      ),
-  }
-  generic_handler = grpc.method_handlers_generic_handler(
-      'mdt_dialout.gRPCMdtDialout', rpc_method_handlers)
-  server.add_generic_rpc_handlers((generic_handler,))
+    rpc_method_handlers = {
+        "MdtDialout": grpc.stream_stream_rpc_method_handler(
+            servicer.MdtDialout,
+            request_deserializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.FromString,
+            response_serializer=cisco__mdt__dial__out__pb2.MdtDialoutArgs.SerializeToString,
+        ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+        "mdt_dialout.gRPCMdtDialout", rpc_method_handlers
+    )
+    server.add_generic_rpc_handlers((generic_handler,))

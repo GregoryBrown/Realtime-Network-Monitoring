@@ -6,18 +6,22 @@ from multiprocessing import Process
 
 def mkdir_p(path):
     try:
-        os.makedirs(path, exist_ok=True)  
+        os.makedirs(path, exist_ok=True)
     except TypeError as e:
         raise e
     except Exception as e:
         raise e
-        
+
 
 class RTNMRotatingFileHandler(RotatingFileHandler):
-    def __init__(self, filename, mode='a', maxBytes=0, backupCount=0, encoding=None, delay=False):
+    def __init__(
+        self, filename, mode="a", maxBytes=0, backupCount=0, encoding=None, delay=False
+    ):
         try:
             mkdir_p(os.path.dirname(filename))
-            RotatingFileHandler.__init__(self, filename, maxBytes=maxBytes, backupCount=backupCount)
+            RotatingFileHandler.__init__(
+                self, filename, maxBytes=maxBytes, backupCount=backupCount
+            )
         except TypeError as e:
             print(e)
             print("Can't initialize logs")
@@ -53,18 +57,23 @@ class MultiProcessQueueLogListener(Process):
             except Exception as e:
                 import sys
                 import traceback
+
                 if self.logger:
                     self.logger.error(traceback.print_exc())
                 else:
-                    print('Problem:', file=sys.stderr)
+                    print("Problem:", file=sys.stderr)
                     traceback.print_exc(file=sys.stderr)
                 rc = False
-    
+
     def configure(self):
         self.logger = logging.getLogger(self.log_name)
-        file_handler = RTNMRotatingFileHandler(f"{self.path}/{self.log_name}.log", maxBytes=536870912, backupCount=2)
+        file_handler = RTNMRotatingFileHandler(
+            f"{self.path}/{self.log_name}.log", maxBytes=536870912, backupCount=2
+        )
         screen_handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
+        formatter = logging.Formatter(
+            "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
+        )
         file_handler.setFormatter(formatter)
         screen_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
