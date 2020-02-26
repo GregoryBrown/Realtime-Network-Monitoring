@@ -13,16 +13,6 @@ class TelemetryTCPDialOutServerError(Error):
 
 
 
-class FormatDataError(Error):
-    """Formatting data failed with error"""
-
-    pass
-
-
-class DeviceFailedToConnect(Error):
-    """The device failed to connect"""
-
-    pass
 
 
 class DeviceDisconnected(Error):
