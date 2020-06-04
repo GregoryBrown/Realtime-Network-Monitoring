@@ -1,36 +1,16 @@
-"""
-Global Real Time Network Monitoring exception and warning classes.
-"""
-
-
-class Error(Exception):
-    pass
-
-
-class TelemetryTCPDialOutServerError(Error):
+class TelemetryTCPDialOutServerError(Exception):
     """Generic Error for TCP Dial out server"""
     pass
 
 
-
-
-
-class DeviceDisconnected(Error):
-    """The device is disconnected"""
-
-    pass
-
-
-class IODefinedError(Error):
+class IODefinedError(Exception):
     """User didn't define an input and output in the configuration file"""
-
     pass
 
 
-class DecodeError(Error):
-    """Error while Decoding telemetry data"""
+class DecodeError(Exception):
+    pass
 
-    def __init__(self, item, full_data, message):
-        self.item = item
-        self.full_data = full_data
-        self.message = message
+
+class ElasticSearchUploaderError(Exception):
+    pass

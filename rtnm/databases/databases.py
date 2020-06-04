@@ -1,97 +1,54 @@
 import json
-from requests import request
-from errors.errors import GetIndexListError, PostDataError, PutIndexError
+import gzip
+from logging import Logger
+from requests import request, Response
+from errors.errors import ElasticSearchUploaderError
+from typing import Dict, Any, List
+from parsers.Parsers import ParsedResponse
 
 
-class ElasticSearchUploader(object):
-    def __init__(self, elastic_server, elastic_port, index_list, lock, log):
-        self.lock = lock
-        self.url = f"http://{elastic_server}:{elastic_port}"
-        self.log = log
-        self.index_list = index_list
+class ElasticSearchUploader:
+    """ElasticSearchUploader creates a connection to an ElasticSearch instance
+    :param elastic_server: The IP of the ElasticSearch instance
+    :type elastic_server: str
+    :param elastic_port: The port number of the ElasticSearch instance
+    :type elastic_port: str
+    :param log: Logger instance to log any debug and errors
+    :type log: Logger
+    """
 
-    def put_index(self, index):
-        headers = {"Content-Type": "application/json"}
-        mapping = {
-            "settings": {"number_of_shards": 1, "number_of_replicas": 2},
-            "mappings": {"properties": {"@timestamp": {"type": "date"}}},
-        }
-        index_put_response = request("PUT", f"{self.url}/{index}", headers=headers, json=mapping)
-        if not index_put_response.status_code == 200:
-            raise PutIndexError(
-                index_put_response.status_code, index_put_response.json(), index, f"PUT failed to upload {index}",
-            )
-        else:
-            self.index_list.append(index)
+    def __init__(self, elastic_server: str, elastic_port: str, log: Logger) -> None:
+        self.url: str = f"http://{elastic_server}:{elastic_port}"
+        self.log: Logger = log
 
-    def populate_index_list(self):
-        try:
-            self.log.info("Populating index list")
-            get_response = request("GET", f"{self.url}/*")
-            if not get_response.status_code == 200:
-                raise GetIndexListError(
-                    get_response.status_code, get_response.json(), "GET failed to retrieve all indices",
-                )
-            for key in get_response.json():
-                if not key.startswith("."):
-                    self.index_list.append(key)
-        except Exception as e:
-            self.log.error(e)
-            exit(1)
+    def _post_parsed_response(self, data: str) -> None:
+        """ Post data to an ES instance with a given index
+        :param data: The data you want to post
+        :type data: ParsedGetResponse
+        :param index: The index to post the data to
+        :type index: str
+        :raises: ElasticSearchUploaderException
+        """
+        self.log.debug(data)
+        headers: Dict[str, Any] = {"Content-Encoding": "gzip", "Content-Type": "application/x-ndjson"}
+        data_to_post: bytes = gzip.compress(data.encode("utf-8"))
+        post_response: Response = request("POST", f"{self.url}/_bulk", data=data_to_post, headers=headers)
+        if post_response.status_code not in [200, 201]:
+            raise ElasticSearchUploaderError("Error while posting data to ElasticSearch")
 
-    def post_data(self, data):
-        data_to_post = "\n".join(json.dumps(d) for d in data)
+    def upload(self, data: List[ParsedResponse]):
+        """Upload operation data into Elasticsearch
+        :param data: The data to upload to Elastic Search
+        :type data: List[ParsedGetResponse]
+        """
+        payload_list: List[Dict[str, Any]] = []
+        for parsed_response in data:
+            index: str = parsed_response.dict_to_upload.pop("index")
+            elastic_index: Dict[str, Any] = {"index": {"_index": f"{index}"}}
+            payload_list.append(elastic_index)
+            parsed_response.dict_to_upload["host"] = parsed_response.hostname
+            parsed_response.dict_to_upload["version"] = parsed_response.version
+            payload_list.append(parsed_response.dict_to_upload)
+        data_to_post: str = "\n".join(json.dumps(d) for d in payload_list)
         data_to_post += "\n"
-        headers = {"Content-Type": "application/x-ndjson"}
-        post_response = request("POST", f"{self.url}/_bulk", data=data_to_post, headers=headers)
-        if post_response.json()["errors"]:
-            raise PostDataError(
-                post_response.status_code, post_response.json(), data_to_post, "POST failed to upload data",
-            )
-
-    def upload(self, data_list):
-        try:
-            self.populate_index_list()
-        except GetIndexListError as e:
-            self.log.error(e)
-            exit(1)
-        except Exception as e:
-            self.log.error(e)
-            exit(1)
-        sorted_by_index = {}
-        for data in data_list:
-            if not data["_index"] in sorted_by_index.keys():
-                sorted_by_index[data["_index"]] = [data]
-            else:
-                sorted_by_index[data["_index"]].append(data)
-        for index in sorted_by_index.keys():
-            if index not in self.index_list:
-                self.log.info("Acquired lock to put index in Elasticsearch")
-                with self.lock:
-                    try:
-                        self.populate_index_list()
-                    except GetIndexListError as e:
-                        self.log.error(e)
-                        exit(1)
-                    except Exception as e:
-                        self.log.error(e)
-                        exit(1)
-                    if index not in self.index_list:
-                        try:
-                            self.put_index(index)
-                        except PutIndexError as e:
-                            self.log.error(e)
-                            exit(1)
-            segment_list = sorted_by_index[index]
-            elastic_index = {"index": {"_index": f"{index}"}}
-            payload_list = [elastic_index]
-            for segment in segment_list:
-                segment.pop("_index", None)
-                payload_list.append(segment)
-                payload_list.append(elastic_index)
-            payload_list.pop()
-            try:
-                self.post_data(payload_list)
-            except PostDataError as e:
-                self.log.error(e)
-                exit(1)
+        self._post_parsed_response(data_to_post)

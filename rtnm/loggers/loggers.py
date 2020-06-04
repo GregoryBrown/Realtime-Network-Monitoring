@@ -1,59 +1,37 @@
-import logging
-import os
+from logging import getLogger, Logger, LogRecord, StreamHandler, Formatter, INFO, DEBUG
 from logging.handlers import RotatingFileHandler, QueueHandler
-from multiprocessing import Process
-
-
-def mkdir_p(path):
-    try:
-        os.makedirs(path, exist_ok=True)
-    except TypeError as e:
-        raise e
-    except Exception as e:
-        raise e
+from multiprocessing import Process, Queue
+from pathlib import Path
+from typing import Tuple
 
 
 class RTNMRotatingFileHandler(RotatingFileHandler):
-    def __init__(self, filename, mode="a", maxBytes=0, backupCount=0, encoding=None, delay=False):
-        try:
-            mkdir_p(os.path.dirname(filename))
-            RotatingFileHandler.__init__(self, filename, maxBytes=maxBytes, backupCount=backupCount)
-        except TypeError as e:
-            print(e)
-            print("Can't initialize logs")
-            exit(1)
-
-
-def init_logs(name, path, queue, debug=False):
-    log_listener = MultiProcessQueueLogListener(name, path, queue)
-    log_listener.start()
-    main_logger = MultiProcessQueueLogger(name, queue, debug)
-    return log_listener, main_logger
+    def __init__(self, filename: str, mode: str = "a", maxBytes: int = 0, backupCount: int = 0, encoding: str = None, delay: bool = False):
+        RotatingFileHandler.__init__(self, filename, maxBytes=maxBytes, backupCount=backupCount)
 
 
 class MultiProcessQueueLogListener(Process):
-    def __init__(self, name, path, queue):
-        super().__init__(name=name)
-        self.log_name = name
-        self.path = path
-        self.queue = queue
-        self.logger = None
+    def __init__(self, name: str, path: Path, queue: Queue):
+        super().__init__(name=f"{name}-log-listener")
+        self.log_name: str = name
+        self.path: Path = path
+        self.path.mkdir(exist_ok=True)
+        self.queue: Queue = queue
 
     def run(self):
         self.configure()
-        rc = True
+        rc: bool = True
         while rc:
             try:
-                record = self.queue.get()
+                record: LogRecord = self.queue.get()
                 if record is None:
                     rc = False
                 else:
-                    self.logger = logging.getLogger(record.name)
+                    self.logger = getLogger(record.name)
                     self.logger.handle(record)
             except Exception as e:
                 import sys
                 import traceback
-
                 if self.logger:
                     self.logger.error(traceback.print_exc())
                 else:
@@ -62,10 +40,11 @@ class MultiProcessQueueLogListener(Process):
                 rc = False
 
     def configure(self):
-        self.logger = logging.getLogger(self.log_name)
-        file_handler = RTNMRotatingFileHandler(f"{self.path}/{self.log_name}.log", maxBytes=536870912, backupCount=2)
-        screen_handler = logging.StreamHandler()
-        formatter = logging.Formatter("%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s")
+        self.logger: Logger = getLogger(self.log_name)
+        file_handler: RTNMRotatingFileHandler = RTNMRotatingFileHandler(f"{self.path}/{self.log_name}.log", maxBytes=536870912, backupCount=5)
+        screen_handler: StreamHandler = StreamHandler()
+        formatter: Formatter = Formatter(
+            "[%(process)s-%(processName)s][%(threadName)-10s] %(asctime)s - %(name)14s - [%(levelname)7s] - %(message)s")
         file_handler.setFormatter(formatter)
         screen_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
@@ -73,13 +52,20 @@ class MultiProcessQueueLogListener(Process):
 
 
 class MultiProcessQueueLogger(object):
-    def __init__(self, name, queue, debug=False):
-        self.name = name
-        self.queue = queue
-        self.queue_handler = QueueHandler(queue)
-        self.logger = logging.getLogger(name)
+    def __init__(self, name: str, queue: Queue, debug: bool = False):
+        self.name: str = name
+        self.queue: Queue = queue
+        self.queue_handler: QueueHandler = QueueHandler(queue)
+        self.logger: Logger = getLogger(name)
         self.logger.addHandler(self.queue_handler)
         if debug:
-            self.logger.setLevel(logging.DEBUG)
+            self.logger.setLevel(DEBUG)
         else:
-            self.logger.setLevel(logging.INFO)
+            self.logger.setLevel(INFO)
+
+
+def init_logs(name, path: Path, queue: Queue, debug: bool = False) -> Tuple[MultiProcessQueueLogListener, MultiProcessQueueLogger]:
+    log_listener: MultiProcessQueueLogListener = MultiProcessQueueLogListener(name, path, queue)
+    log_listener.start()
+    main_logger: MultiProcessQueueLogger = MultiProcessQueueLogger(name, queue, debug)
+    return log_listener, main_logger

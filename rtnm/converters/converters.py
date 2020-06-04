@@ -36,7 +36,6 @@ class DataConverter(object):
                 telemetry_pb.ParseFromString(segment)
                 json_segments.append(json.loads(json_format.MessageToJson(telemetry_pb)))
             for segment in json_segments:
-                print(segment)
                 formatted_json_segments.append(self.parse_cisco_encoding(segment))
             formatted_json_segments = [x for x in formatted_json_segments if x is not None]
             formatted_json_segments = [item for sublist in formatted_json_segments for item in sublist]

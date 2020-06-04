@@ -1,33 +1,26 @@
 import traceback
 import json
-import configparser
-from utils.exceptions import IODefinedError
+from configparser import ConfigParser
+from errors.errors import IODefinedError
 
 
-class ConfigurationParser(object):
-    def __init__(self, in_file):
-        self.config = configparser.ConfigParser()
-        try:
-            self.config.read(in_file)
-        except Exception as e:
-            raise e
-
-    def generate_clients(self):
-        io_defined = False
-        input_defined = []
-        output_defined = []
-        for section in self.config.sections():
-            try:
-                input_defined.append(self.config[section]["io"] == "input")
-                output_defined.append(self.config[section]["io"] == "output")
-            except Exception as e:
-                raise e
-        io_defined = any(input_defined) and any(output_defined)
-        if not io_defined:
-            raise IODefinedError
-        input_clients = {}
-        output_clients = {}
-        sub_mode = {"sample": 2, "on-change": 1}
+def generate_clients(self, in_file):
+    config = configparser.ConfigParser()
+    config.read(in_file)
+    io_defined = False
+    input_defined = []
+    output_defined = []
+    for section in self.config.sections():
+        print(section)
+        input_defined.append(self.config[section]["io"] == "input")
+        output_defined.append(self.config[section]["io"] == "output")
+    io_defined = any(input_defined) and any(output_defined)
+    if not io_defined:
+        raise IODefinedError
+    """
+    input_clients = {}
+    output_clients = {}
+    sub_mode = {"sample": 2, "on-change": 1}
         stream_mode = {"stream": 0, "once": 1, "poll": 2}
         for section in self.config.sections():
             if self.config[section]["io"] == "input":
@@ -73,3 +66,4 @@ class ConfigurationParser(object):
                     raise e
 
         return input_clients, output_clients
+    """
