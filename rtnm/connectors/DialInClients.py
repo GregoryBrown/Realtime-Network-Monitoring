@@ -36,6 +36,7 @@ class DialInClient(Process):
         self._format: str = kwargs["format"]
         self.encoding: str = kwargs["encoding"]
         self.debug: bool = kwargs["debug"]
+        self.compression: bool = kwargs["compression"]
         if self._format == "gnmi":
             self.sub_mode = kwargs["subscription-mode"]
             self.sensors: List[str] = kwargs["sensors"]
@@ -159,7 +160,11 @@ class DialInClient(Process):
             yield None
 
     def connect(self):
-        self.channel = grpc.insecure_channel(":".join([self._host, self._port]))
+        if self.compression:
+            self.channel = grpc.insecure_channel(":".join([self._host, self._port]), self.options,
+                                                 compression=grpc.Compression.Gzip)
+        else:
+            self.channel = grpc.insecure_channel(":".join([self._host, self._port]), self.options)
         try:
             grpc.channel_ready_future(self.channel).result(timeout=10)
             self._connected.value = True
@@ -191,7 +196,11 @@ class TLSDialInClient(DialInClient):
 
     def connect(self):
         credentials = grpc.ssl_channel_credentials(self._pem)
-        self.channel = grpc.secure_channel(":".join([self._host, self._port]), credentials, self.options)
+        if self.compression:
+            self.channel = grpc.secure_channel(
+                ":".join([self._host, self._port]), credentials, self.options, compression=grpc.Compression.Gzip)
+        else:
+            self.channel = grpc.secure_channel(":".join([self._host, self._port]), credentials, self.options)
         try:
             grpc.channel_ready_future(self.channel).result(timeout=10)
             self.log.info("Connected")
