@@ -97,10 +97,11 @@ def get_date() -> str:
     return ".".join([str(now.year), month, day])
 
 
-def yang_path_to_es_index(name):
+def yang_path_to_es_index(name: str, encoding: str):
     index: str = (name.replace("/", "-").lower().replace(":", "-").replace("[", "-").replace("]", "").replace('"', ""))
     date: str = get_date()
     size_of_date: int = sys.getsizeof(date)
-    while sys.getsizeof(index) + size_of_date > 255:
+    size_of_encoding: int = sys.getsizeof(encoding)
+    while sys.getsizeof(index) + size_of_date + size_of_encoding > 255:
         index = "-".join(index.split("-")[:-1])
-    return f"{index}-gnmi-{get_date()}"
+    return f"{index}-{encoding}-{get_date()}"

@@ -1,8 +1,8 @@
-from typing import List, Union, Optional, Tuple, Iterator
+from typing import List, Union, Optional, Tuple, Iterator, Dict, Any
 import json
 from parsers.Parsers import RTNMParser, ParsedResponse
 from protos.gnmi_pb2 import SubscribeResponse, TypedValue
-from protos.telemetry_pb2 import Telemetry
+from protos.telemetry_pb2 import Telemetry, TelemetryField
 from utils.utils import yang_path_to_es_index
 
 
@@ -41,7 +41,7 @@ class ElasticSearchParser(RTNMParser):
                 value = str(value)
             return value
 
-        value_encodings = {
+        value_encodings: Dict[str, Any] = {
             "string_val": str,
             "int_val": int_parse,
             "uint_val": int_parse,
@@ -89,14 +89,91 @@ class ElasticSearchParser(RTNMParser):
             total_yang_path = f"{start_yang_path}/{'/'.join(rc)}"
             leaf = "-".join(total_yang_path.split("/")[-2:])
             parsed_dict[leaf] = value
-            parsed_dict["index"] = yang_path_to_es_index(total_yang_path)
+            parsed_dict["index"] = yang_path_to_es_index(total_yang_path, "gnmi")
             parsed_dict["yang_path"] = total_yang_path
             yield ParsedResponse(parsed_dict, version, hostname)
 
-    def parse_ems(self, response: Telemetry):
+    def get_ems_values(self, value_by_type, value):
+        ems_values: Dict[str, Any] = {
+            "bytes_value": bytes,
+            "string_value": str,
+            "bool_value": bool,
+            "uint32_value": int,
+            "uint64_value": int,
+            "sint32_value": int,
+            "sint64_value": int,
+            "double_value": float,
+            "float_value": float
+        }
+        func = ems_values[value_by_type]
+        return func(getattr(value, value_by_type))
+
+    def parse_ems(self, response: Telemetry, version: str) -> List[ParsedResponse]:
         self.log.debug("In parse_ems")
-        for data_gpbkv in response.data_gpbkv:
-            self.log.info(data_gpbkv)
+        node_str = response.node_id_str
+        start_yang_path = response.encoding_path
+        version = version
+
+        def parse_keys(key_dict: TelemetryField) -> Dict[str, Any]:
+            keys: Dict[str, Any] = {}
+
+            for field in key_dict.fields:
+                keys[field.name] = self.get_ems_values(field.WhichOneof("value_by_type"), field)
+            return keys
+
+        def parse_content(content_field_list: List[TelemetryField],
+                          content_list: List[Dict[str, Any]], path: List[str]) -> None:
+            # List of telemetry fields, some have multiple levels others don't
+            sub_path: List[str] = path[:]
+            # print(content_field_list)
+            for field in content_field_list:
+                # print(field)
+                if not field.fields:
+                    content_list.append({field.name: self.get_ems_values(
+                        field.WhichOneof("value_by_type"), field), "path": sub_path})
+                    # print(content_list)
+                else:
+                    sub_path.append(field.name)
+                    parse_content(field.fields, content_list, sub_path)
+                    if sub_path:
+                        sub_path.pop()
+
+        def parse_telemetry_field(telemetry_field: TelemetryField):
+            # Every telemetry_field has a keys and content fields
+            # in the telemetry_field.fields list
+            keys = parse_keys(telemetry_field.fields[0])
+            content_list: List[Dict[str, Any]] = []
+            path: List[str] = []
+            parse_content(telemetry_field.fields[1].fields, content_list, path)
+            return keys, content_list
+
+        def parse_data_gpbkv(telemetry_fields: List[TelemetryField]) -> List[Dict[str, str]]:
+            for telemetry_field in telemetry_fields:
+                keys, content = parse_telemetry_field(telemetry_field)
+                return keys, content, telemetry_field.timestamp
+                # if not data_gpbkv.delete:
+                #keys, content = self.parse_fields(data_gpbkv.fields, start_yang_path)
+                # self.log.info(keys)
+                # self.log.info(data_gpbkv.timestamp)
+                # self.log.info(node_str)
+                # self.log.info(start_yang_path)
+        keys, content, timestamp = parse_data_gpbkv(response.data_gpbkv)
+        for content_dict in content:
+            parsed_dict: Dict[str, Any] = {}
+            parsed_dict["keys"] = keys
+            parsed_dict["@timestamp"] = timestamp
+            if content_dict["path"]:
+                total_yang_path = f"{start_yang_path}/{'/'.join(content_dict['path'])}"
+            else:
+                total_yang_path = f"{start_yang_path}"
+            content_dict.pop("path")
+            leaf, value = next(iter(content_dict.items()))
+            total_yang_path = f"{total_yang_path}/{leaf}"
+            parsed_dict["yang_path"] = total_yang_path
+            parsed_dict["index"] = yang_path_to_es_index(total_yang_path, "grpc")
+            leaf = "-".join(total_yang_path.split("/")[-2:])
+            parsed_dict[leaf] = value
+            yield ParsedResponse(parsed_dict, version, node_str)
 
     def decode_and_parse_raw_responses(self) -> List[ParsedResponse]:
         self.log.debug("In decode and parse")
@@ -108,8 +185,7 @@ class ElasticSearchParser(RTNMParser):
                 if gpb_encoding == "gnmi":
                     parsed_list.append(self.parse_gnmi(decoded_response, response[2], response[3]))
                 else:
-                    print(decoded_response)
-                    parsed_list.append(self.parse_ems(decoded_response))
+                    parsed_list.append(self.parse_ems(decoded_response, response[3]))
             except Exception as error:
                 self.log.error(error)
         return parsed_list

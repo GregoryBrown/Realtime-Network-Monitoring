@@ -154,7 +154,7 @@ class DialInClient(Process):
                     self._connected.value = False
                     yield None
                 else:
-                    yield ("ems", segment.data, None, None)
+                    yield ("ems", segment.data, None, "Unknown")
         except Exception as error:
             self.log.error(error)
             yield None
