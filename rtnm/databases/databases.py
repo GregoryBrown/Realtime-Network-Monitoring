@@ -34,6 +34,9 @@ class ElasticSearchUploader:
         data_to_post: bytes = gzip.compress(data.encode("utf-8"))
         post_response: Response = request("POST", f"{self.url}/_bulk", data=data_to_post, headers=headers)
         if post_response.status_code not in [200, 201]:
+            self.log.error(data)
+            self.log.error(post_response)
+            self.log.error(post_response.json())
             raise ElasticSearchUploaderError("Error while posting data to ElasticSearch")
 
     def upload(self, data: List[ParsedResponse]):
@@ -41,6 +44,7 @@ class ElasticSearchUploader:
         :param data: The data to upload to Elastic Search
         :type data: List[ParsedGetResponse]
         """
+
         payload_list: List[Dict[str, Any]] = []
         for parsed_response in data:
             index: str = parsed_response.dict_to_upload.pop("index")
@@ -50,5 +54,6 @@ class ElasticSearchUploader:
             parsed_response.dict_to_upload["version"] = parsed_response.version
             payload_list.append(parsed_response.dict_to_upload)
         data_to_post: str = "\n".join(json.dumps(d) for d in payload_list)
-        data_to_post += "\n"
-        self._post_parsed_response(data_to_post)
+        if data_to_post.strip():
+            data_to_post += "\n"
+            self._post_parsed_response(data_to_post)

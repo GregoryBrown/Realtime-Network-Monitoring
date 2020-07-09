@@ -108,7 +108,7 @@ class ElasticSearchParser(RTNMParser):
         func = ems_values[value_by_type]
         return func(getattr(value, value_by_type))
 
-    def parse_ems(self, response: Telemetry, version: str) -> List[ParsedResponse]:
+    def parse_ems(self, response: Telemetry, version: str) -> Iterator[ParsedResponse]:
         self.log.debug("In parse_ems")
         node_str = response.node_id_str
         start_yang_path = response.encoding_path
@@ -147,33 +147,32 @@ class ElasticSearchParser(RTNMParser):
             parse_content(telemetry_field.fields[1].fields, content_list, path)
             return keys, content_list
 
-        def parse_data_gpbkv(telemetry_fields: List[TelemetryField]) -> List[Dict[str, str]]:
+        def parse_data_gpbkv(telemetry_fields: List[TelemetryField]) -> List[Tuple[Dict[str, Any], Dict[str, Any], int]]:
+            all_responses: List[Tuple[Dict[str, Any], Dict[str, Any], int]] = []
             for telemetry_field in telemetry_fields:
                 keys, content = parse_telemetry_field(telemetry_field)
-                return keys, content, telemetry_field.timestamp
-                # if not data_gpbkv.delete:
-                #keys, content = self.parse_fields(data_gpbkv.fields, start_yang_path)
-                # self.log.info(keys)
-                # self.log.info(data_gpbkv.timestamp)
-                # self.log.info(node_str)
-                # self.log.info(start_yang_path)
-        keys, content, timestamp = parse_data_gpbkv(response.data_gpbkv)
-        for content_dict in content:
-            parsed_dict: Dict[str, Any] = {}
-            parsed_dict["keys"] = keys
-            parsed_dict["@timestamp"] = timestamp
-            if content_dict["path"]:
-                total_yang_path = f"{start_yang_path}/{'/'.join(content_dict['path'])}"
-            else:
-                total_yang_path = f"{start_yang_path}"
-            content_dict.pop("path")
-            leaf, value = next(iter(content_dict.items()))
-            total_yang_path = f"{total_yang_path}/{leaf}"
-            parsed_dict["yang_path"] = total_yang_path
-            parsed_dict["index"] = yang_path_to_es_index(total_yang_path, "grpc")
-            leaf = "-".join(total_yang_path.split("/")[-2:])
-            parsed_dict[leaf] = value
-            yield ParsedResponse(parsed_dict, version, node_str)
+                all_responses.append((keys, content, telemetry_field.timestamp))
+            return all_responses
+
+        parsed_responses: List[Tuple[Dict[str, Any], Dict[str, Any], int]] = parse_data_gpbkv(response.data_gpbkv)
+        for parsed_response in parsed_responses:
+            keys, content, timestamp = parsed_response
+            for content_dict in content:
+                parsed_dict: Dict[str, Any] = {}
+                parsed_dict["keys"] = keys
+                parsed_dict["@timestamp"] = timestamp
+                if content_dict["path"]:
+                    total_yang_path = f"{start_yang_path}/{'/'.join(content_dict['path'])}"
+                else:
+                    total_yang_path = f"{start_yang_path}"
+                content_dict.pop("path")
+                leaf, value = next(iter(content_dict.items()))
+                total_yang_path = f"{total_yang_path}/{leaf}"
+                parsed_dict["yang_path"] = total_yang_path
+                parsed_dict["index"] = yang_path_to_es_index(total_yang_path, "grpc")
+                leaf = "-".join(total_yang_path.split("/")[-2:])
+                parsed_dict[leaf] = value
+                yield ParsedResponse(parsed_dict, version, node_str)
 
     def decode_and_parse_raw_responses(self) -> List[ParsedResponse]:
         self.log.debug("In decode and parse")
