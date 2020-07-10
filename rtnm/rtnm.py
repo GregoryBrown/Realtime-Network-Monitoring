@@ -43,6 +43,7 @@ def main():
     parser.add_argument("-w", "--worker-pool-size", dest="worker_pool_size", type=int,
                         help="Number of workers in the worker pool used for uploading")
     parser.add_argument("-v", "--verbose", dest="debug", help="Enable debugging", action="store_true")
+    parser.add_argument("-r", "--retry", dest="retry", help="Enable retrying", action="store_true")
     args = parser.parse_args()
     try:
         inputs, outputs = generate_clients(args.config)
@@ -69,16 +70,17 @@ def main():
                     raise NotImplementedError("Dial Out is not implemented")
                 else:
                     inputs[client]["debug"] = args.debug
+                    inputs[client]["retry"] = args.retry
                     if "pem-file" in inputs[client]:
-                        with open(inputs[client]["pem-file"], "rb") as fp:
-                            pem = fp.read()
-                        rtnm_log.logger.info("Creating TLS Connector")
+                        with open(inputs[client]["pem-file"], "rb") as file_desc:
+                            pem = file_desc.read()
+                        rtnm_log.logger.info(f"Creating TLS Connector for {client}")
                         client_conns.append(TLSDialInClient(pem,
                                                             Value(c_bool, False), data_queue,
                                                             log_name, **inputs[client],
                                                             name=client))
                     else:
-                        rtnm_log.logger.info("Creating Connector")
+                        rtnm_log.logger.info(f"Creating Connector for {client}")
                         client_conns.append(DialInClient(Value(c_bool, False), data_queue,
                                                          log_name, **inputs[client], name=client))
 

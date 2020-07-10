@@ -36,6 +36,7 @@ class DialInClient(Process):
         self._format: str = kwargs["format"]
         self.encoding: str = kwargs["encoding"]
         self.debug: bool = kwargs["debug"]
+        self.retry: bool = kwargs["retry"]
         self.compression: bool = kwargs["compression"]
         if self._format == "gnmi":
             self.sub_mode = kwargs["subscription-mode"]
@@ -45,13 +46,19 @@ class DialInClient(Process):
         else:
             self.subs: List[str] = kwargs["subscriptions"]
         self._timeout: float = float(timeout)
-        self.log.debug(f"Finished initialzing {self.name}")
         self.gnmi_stub = None
+        self.cisco_ems_stub = None
+        self.log.debug(f"Finished initialzing {self.name}")
 
     def _get_gnmi_stub(self) -> gNMIStub:
-        if not self.gnmi_stub:
-            self.gnmi_stub: gNMIStub = gNMIStub(self.channel)
+        # if not self.gnmi_stub:
+        self.gnmi_stub: gNMIStub = gNMIStub(self.channel)
         return self.gnmi_stub
+
+    def _get_ems_stub(self) -> gRPCConfigOperStub:
+        # if not self.cisco_ems_stub:
+        self.cisco_ems_stub: gRPCConfigOperStub = gRPCConfigOperStub(self.channel)
+        return self.cisco_ems_stub
 
     def _get_version(self) -> str:
         stub: gNMIStub = self._get_gnmi_stub()
@@ -118,25 +125,7 @@ class DialInClient(Process):
                     self.log.debug("Got all values atleast once")
                 else:
                     yield ("gnmi", response.SerializeToString(), hostname, version)
-                    '''
-                    for update in response.update.update:
-                        parsed_dict = {
-                            "@timestamp": (int(response.update.timestamp) / 1000000),
-                            "byte_size": response.ByteSize(),
-                        }
-                        keys, start_yang_path = self.process_header(response.update)
-                        parsed_dict["keys"] = keys
-                        rc = []
-                        value = self.get_value(update.val)
-                        for elem in update.path.elem:
-                            rc.append(elem.name)
-                        total_yang_path = f"{start_yang_path}/{'/'.join(rc)}"
-                        leaf = "-".join(total_yang_path.split("/")[-2:])
-                        parsed_dict[leaf] = value
-                        parsed_dict["index"] = yang_path_to_es_index(total_yang_path)
-                        parsed_dict["yang_path"] = total_yang_path
-                        yield ParsedResponse(parsed_dict, self.version, self.hostname)
-                    '''
+
         except Exception as error:
             self.log.error(error)
             self._connected.value = False
@@ -144,17 +133,18 @@ class DialInClient(Process):
 
     def ems_subscribe(self) -> Generator[Union[Tuple[str, str, None, None], None], None, None]:
         try:
-            self.cisco_ems_stub: gRPCConfigOperStub = gRPCConfigOperStub(self.channel)
+            version: str = self._get_version()
+            stub: gRPCConfigOperStub = self._get_ems_stub()
             sub_args: CreateSubsArgs = CreateSubsArgs(ReqId=1, encode=self.encoding,
                                                       Subscriptions=self.subs)
-            for segment in self.cisco_ems_stub.CreateSubs(sub_args, timeout=self._timeout,
-                                                          metadata=self._metadata):
+            for segment in stub.CreateSubs(sub_args, timeout=self._timeout,
+                                           metadata=self._metadata):
                 if segment.errors:
                     self.log.error(segment.errors)
                     self._connected.value = False
                     yield None
                 else:
-                    yield ("ems", segment.data, None, "Unknown")
+                    yield ("ems", segment.data, None, version)
         except Exception as error:
             self.log.error(error)
             yield None
@@ -171,22 +161,51 @@ class DialInClient(Process):
             self.log.info("Connected")
         except grpc.FutureTimeoutError as error:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
-            self.log.error(error)
-            self.queue.put_nowait(None)
             self._connected.value = False
 
     def is_connected(self):
         return self._connected.value
 
+    def disconnect(self):
+        self.log.info(f"Closing channel for {self.name}")
+        self.channel.close()
+
     def run(self):
-        self.connect()
-        if self.is_connected():
-            if self._format == "gnmi":
-                for response_bytes in self.gnmi_subscribe():
-                    self.queue.put_nowait(response_bytes)
-            else:
-                for response_bytes in self.ems_subscribe():
-                    self.queue.put_nowait(response_bytes)
+        if self.retry:
+            while self.retry:
+                self.connect()
+                if self.is_connected():
+                    if self._format == "gnmi":
+                        for response_bytes in self.gnmi_subscribe():
+                            if response_bytes is None:
+                                self.log.info("Received an error while streaming")
+                                self.disconnect()
+                            else:
+                                self.queue.put_nowait(response_bytes)
+                    else:
+                        for response_bytes in self.ems_subscribe():
+                            if response_bytes is None:
+                                self.log.info("Received an error while streaming")
+                                self.disconnect()
+                            else:
+                                self.queue.put_nowait(response_bytes)
+        else:
+            self.connect()
+            if self.is_connected():
+                if self._format == "gnmi":
+                    for response_bytes in self.gnmi_subscribe():
+                        if response_bytes is None:
+                            self.log.info("Received an error while streaming")
+                            self.disconnect()
+                        else:
+                            self.queue.put_nowait(response_bytes)
+                else:
+                    for response_bytes in self.ems_subscribe():
+                        if response_bytes is None:
+                            self.log.info("Received an error while streaming")
+                            self.disconnect()
+                        else:
+                            self.queue.put_nowait(response_bytes)
 
 
 class TLSDialInClient(DialInClient):
@@ -207,5 +226,4 @@ class TLSDialInClient(DialInClient):
             self._connected.value = True
         except grpc.FutureTimeoutError as error:
             self.log.error(f"Can't connect to {self._host}:{self._port}")
-            self.log.error(error)
             self._connected.value = False
