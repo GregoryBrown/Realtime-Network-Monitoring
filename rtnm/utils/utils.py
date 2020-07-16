@@ -1,5 +1,6 @@
 import sys
 from datetime import datetime
+from distutils.util import strtobool
 import re
 from typing import Tuple, Dict, Any, List
 from configparser import ConfigParser
@@ -36,7 +37,7 @@ def generate_clients(in_file: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     input_clients[section]["port"] = config[section]["port"]
                     input_clients[section]["username"] = config[section]["username"]
                     input_clients[section]["password"] = config[section]["password"]
-                    input_clients[section]["compression"] = config[section]["compression"]
+                    input_clients[section]["compression"] = bool(strtobool(config[section]["compression"]))
                     if config[section]["format"] == "gnmi":
                         input_clients[section]["format"] = "gnmi"
                         input_clients[section]["sensors"] = [
