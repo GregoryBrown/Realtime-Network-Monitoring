@@ -1,26 +1,42 @@
+"""
+.. module:: rtnm
+   :platform: Unix, Windows
+   :synopsis: Driver file for RTNM 
+.. moduleauthor:: Greg Brown <gsb5067@gmail.com>
+"""
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import List, Dict, Union, Tuple, Union, Optional
+from typing import List, Dict, Union, Tuple, Optional
 from multiprocessing import Pool, Queue, Value
 from queue import Empty
 from ctypes import c_bool
 from logging import getLogger, Logger
 
-from parsers.ElasticSearchParser import ElasticSearchParser
+from parsers.ElasticSearchParser import ElasticSearchParser, ParsedResponse
 from loggers.loggers import init_logs
 from databases.databases import ElasticSearchUploader
-from errors.errors import IODefinedError, ElasticSearchUploaderError, DecodeError
+from errors.errors import IODefinedError, ElasticSearchUploaderError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
-from parsers.Parsers import ParsedResponse
 
 
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
-                            log_name: str, output: Dict[str, str]):
+                            log_name: str, tsdb_args: Dict[str, str]):
+    """Process the raw responses from gRPC/gNMI client and upload to a TSDB
+
+    :param batch_list: The raw responses from either Cisco gRPC or gNMI clients or from both.
+    :type batch_list: List[Tuple[str, str, Optional[str], Optional[str]]]
+    :param log_name: Name of the logger used in RTNM to acquire
+    :type log_name: str
+    :param tsdb_args: The arguments of the TSDB (username, port, password, etc.)
+    :type tsdb_args: Dict[str, str]
+
+    """
+
     processor_log: Logger = getLogger(log_name)
     processor_log.debug("Creating Uploader and parser")
-    es_uploader: ElasticSearchUploader = ElasticSearchUploader(output["address"],
-                                                               output["port"], processor_log)
+    es_uploader: ElasticSearchUploader = ElasticSearchUploader(tsdb_args["address"],
+                                                               tsdb_args["port"], processor_log)
     es_parser: ElasticSearchParser = ElasticSearchParser(batch_list, log_name)
     try:
         parsed_responses: List[ParsedResponse] = es_parser.decode_and_parse_raw_responses()
@@ -32,11 +48,22 @@ def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Opti
 
 
 def cleanup(log: Queue) -> None:
+    """Clean up the logging process and logging queue for when the program closes
+
+    :param log: The logging queue to send the sentinal value to tell it to stop waiting for records
+    :type log: Queue
+
+    """
     log.queue.put(None)
     log.join()
 
 
 def main():
+    """RTNM main function used for getting the users arguements and spawns processes for each
+    connection and handles dispatching of responses into a worker pool for processing
+    and uploading of the data
+
+    """
     parser = ArgumentParser()
     parser.add_argument("-c", "--config", dest="config", help="Location of the configuration file", required=True)
     parser.add_argument("-b", "--batch-size", dest="batch_size",

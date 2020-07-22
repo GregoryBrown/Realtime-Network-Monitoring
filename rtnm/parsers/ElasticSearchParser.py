@@ -1,20 +1,43 @@
-from typing import List, Union, Optional, Tuple, Iterator, Dict, Any
+"""
+.. module:: ElasticSearchParser
+   :platform: Unix, Windows
+   :synopsis: Parser of gRPC/gNMI raw responses used for uploading to a TSDB 
+.. moduleauthor:: Greg Brown <gsb5067@gmail.com>
+"""
+from typing import List, Union, Optional, Tuple, Dict, Any
 import json
 from parsers.Parsers import RTNMParser, ParsedResponse
-from protos.gnmi_pb2 import SubscribeResponse, TypedValue
+from protos.gnmi_pb2 import SubscribeResponse, TypedValue, Update
 from protos.telemetry_pb2 import Telemetry, TelemetryField
 from utils.utils import yang_path_to_es_index
 
 
 class ElasticSearchParser(RTNMParser):
+    """Parser class to take raw responses and decode them and put them into
+    yang level responses for upload
+
+    :param args: Arguments for parsing
+    :type args: List[str]
+    :param kwargs: keyword arguments for parsing
+    :type kwargs: Dict[str, Any]
+
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log.debug("Created Elasticsearch Parser Object")
 
     @staticmethod
-    def process_header(header):
-        keys = {}
-        yang_path = []
+    def process_header(header: Update) -> Tuple[Dict[str, str], str]:
+        """Separate the update header into keys and the starting yang path
+
+        :param header: The top level update of the gNMI response that has the keys and yang path
+        :type header: Update
+
+        """
+
+        keys: Dict[str, str] = {}
+        yang_path: List[str] = []
         for elem in header.prefix.elem:
             yang_path.append(elem.name)
             if elem.key:
@@ -22,7 +45,14 @@ class ElasticSearchParser(RTNMParser):
         return keys, f"{header.prefix.origin}:{'/'.join(yang_path)}"
 
     @staticmethod
-    def get_value(type_value: TypedValue):
+    def get_value(type_value: TypedValue) -> Any:
+        """Using gNMI defined possible value encodings get the value in its native encoding_path
+
+        :param type_value: The value in the response
+        :param type_value: TypedValue
+
+        """
+
         value_type = type_value.WhichOneof("value")
 
         def leaf_list_parse(value):
