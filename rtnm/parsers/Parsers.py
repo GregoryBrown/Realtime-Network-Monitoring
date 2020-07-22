@@ -3,9 +3,9 @@ from logging import getLogger, Logger
 
 
 class ParsedResponse:
-    def __init__(self, response: Dict[str, Any], version: str, hostname: str) -> None:
-        self.version: str = version
-        self.hostname: str = hostname
+    def __init__(self, response: Dict[str, Any], version: Optional[str], hostname: Optional[str]) -> None:
+        self.version: Optional[str] = version
+        self.hostname: Optional[str] = hostname
         self.dict_to_upload: Dict[str, Any] = response
 
     def __str__(self):

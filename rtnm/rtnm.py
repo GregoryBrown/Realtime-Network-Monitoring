@@ -12,6 +12,7 @@ from databases.databases import ElasticSearchUploader
 from errors.errors import IODefinedError, ElasticSearchUploaderError, DecodeError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
+from parsers.Parsers import ParsedResponse
 
 
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
@@ -22,15 +23,15 @@ def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Opti
                                                                output["port"], processor_log)
     es_parser: ElasticSearchParser = ElasticSearchParser(batch_list, log_name)
     try:
-        for response_gen in es_parser.decode_and_parse_raw_responses():
-            es_uploader.upload(response_gen)
+        parsed_responses: List[ParsedResponse] = es_parser.decode_and_parse_raw_responses()
+        es_uploader.upload(parsed_responses)
     except ElasticSearchUploaderError as error:
         processor_log.error(error)
     except Exception as error:
         processor_log.error(error)
 
 
-def cleanup(log):
+def cleanup(log: Queue) -> None:
     log.queue.put(None)
     log.join()
 
@@ -113,7 +114,7 @@ def main():
     finally:
         cleanup(log_listener)
         for client in client_conns:
-            client.kill()
+            client.join()
 
 
 if __name__ == "__main__":
