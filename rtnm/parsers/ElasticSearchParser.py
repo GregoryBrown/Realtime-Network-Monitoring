@@ -83,7 +83,7 @@ class ElasticSearchParser(RTNMParser):
             "json_val": json.loads,
             "json_ietf_val": json.loads,
             "ascii_val": str,
-            "proto_bytes": bytes,
+            "proto_bytes": str,
         }
         func = value_encodings[value_type]
         return func(getattr(type_value, value_type))
@@ -140,7 +140,7 @@ class ElasticSearchParser(RTNMParser):
 
     def get_ems_values(self, value_by_type, value):
         ems_values: Dict[str, Any] = {
-            "bytes_value": bytes,
+            "bytes_value": str,
             "string_value": str,
             "bool_value": bool,
             "uint32_value": int,
@@ -150,8 +150,11 @@ class ElasticSearchParser(RTNMParser):
             "double_value": float,
             "float_value": float
         }
-        func = ems_values[value_by_type]
-        return func(getattr(value, value_by_type))
+        if value_by_type is None:
+            return ""
+        else:
+            func = ems_values[value_by_type]
+            return func(getattr(value, value_by_type))
 
     def parse_ems(self, response: Telemetry, version: Optional[str]) -> List[ParsedResponse]:
         self.log.debug("In parse_ems")
@@ -229,10 +232,14 @@ class ElasticSearchParser(RTNMParser):
             gpb_encoding = response[0]
             try:
                 decoded_response = self._decode(response)
+                self.log.debug(decoded_response)
                 if gpb_encoding == "gnmi":
                     parsed_list.extend(self.parse_gnmi(decoded_response, response[2], response[3]))
                 else:
                     parsed_list.extend(self.parse_ems(decoded_response, response[3]))
             except Exception as error:
                 self.log.error(error)
+                import traceback
+                self.log.error(traceback.print_exc())
+                
         return parsed_list
