@@ -66,7 +66,7 @@ def main():
     """
     parser = ArgumentParser()
     parser.add_argument("-c", "--config", dest="config", help="Location of the configuration file", required=True)
-    parser.add_argument("-b", "--batch-size", dest="batch_size",
+    parser.add_argument("-b", "--batch-size", dest="batch_size", type=int,
                         help="Batch size of the upload to ElasticSearch", required=True)
     parser.add_argument("-w", "--worker-pool-size", dest="worker_pool_size", type=int,
                         help="Number of workers in the worker pool used for uploading")
@@ -119,21 +119,25 @@ def main():
                 rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
                 client.start()
             batch_list: List[Tuple[str, str, Optional[str], Optional[str]]] = []
+        
             while all([client.is_alive() for client in client_conns]):
                 try:
+                    #rtnm_log.logger.info(data_queue.qsize())
                     data: Tuple[str, str, Optional[str], Optional[str]] = data_queue.get(timeout=1)
                     if data is not None:
                         batch_list.append(data)
-                        if len(batch_list) >= BATCH_SIZE:
+                        if len(batch_list) >= args.batch_size:
                             rtnm_log.logger.debug("Uploading full batch size")
-                            worker_pool.apply_async(process_and_upload_data,
+                            result = worker_pool.apply_async(process_and_upload_data,
                                                     (deepcopy(batch_list), log_name, output))
+                            del result
                             batch_list.clear()
                 except Empty:
                     if len(batch_list) != 0:
                         rtnm_log.logger.debug(f"Uploading data of length {len(batch_list)}")
-                        worker_pool.apply_async(process_and_upload_data,
+                        result = worker_pool.apply_async(process_and_upload_data,
                                                 (deepcopy(batch_list), log_name, output))
+                        del result
                         batch_list.clear()
     except NotImplementedError as error:
         rtnm_log.logger.error(error)
