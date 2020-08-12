@@ -5,6 +5,7 @@
 .. moduleauthor:: Greg Brown <gsb5067@gmail.com>
 """
 from argparse import ArgumentParser
+from copy import deepcopy
 from pathlib import Path
 from typing import List, Dict, Union, Tuple, Optional
 from multiprocessing import Pool, Queue, Value
@@ -18,9 +19,6 @@ from databases.databases import ElasticSearchUploader
 from errors.errors import IODefinedError, ElasticSearchUploaderError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
-from guppy import hpy
-
-h = hpy()
 
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
                             log_name: str, tsdb_args: Dict[str, str]):
@@ -97,6 +95,12 @@ def main():
             for client in inputs:
                 if inputs[client]["io"] == "out":
                     raise NotImplementedError("Dial Out is not implemented")
+            client_conns: List[Union[DialInClient, TLSDialInClient]] = []
+            data_queue: Queue = Queue()
+            rtnm_log.logger.info("Starting inputs and outputs")
+            for client in inputs:
+                if inputs[client]["io"] == "out":
+                    raise NotImplementedError("Dial Out is not implemented")
                 else:
                     inputs[client]["debug"] = args.debug
                     inputs[client]["retry"] = args.retry
@@ -111,29 +115,26 @@ def main():
                         rtnm_log.logger.info(f"Creating Connector for {client}")
                         client_conns.append(DialInClient(data_queue,
                                                          log_name, **inputs[client], name=client))
-
             for client in client_conns:
                 rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
                 client.start()
-
             batch_list: List[Tuple[str, str, Optional[str], Optional[str]]] = []
             while all([client.is_alive() for client in client_conns]):
                 try:
                     data: Tuple[str, str, Optional[str], Optional[str]] = data_queue.get(timeout=1)
                     if data is not None:
                         batch_list.append(data)
-                        if len(batch_list) >= int(args.batch_size):
+                        if len(batch_list) >= BATCH_SIZE:
                             rtnm_log.logger.debug("Uploading full batch size")
                             worker_pool.apply_async(process_and_upload_data,
-                                              (batch_list, log_name, output))
+                                                    (deepcopy(batch_list), log_name, output))
                             batch_list.clear()
                 except Empty:
                     if len(batch_list) != 0:
                         rtnm_log.logger.debug(f"Uploading data of length {len(batch_list)}")
-                        worker_pool.apply(process_and_upload_data,
-                                          (batch_list, log_name, output))
+                        worker_pool.apply_async(process_and_upload_data,
+                                                (deepcopy(batch_list), log_name, output))
                         batch_list.clear()
-            worker_pool.close()
     except NotImplementedError as error:
         rtnm_log.logger.error(error)
     except Exception as error:
