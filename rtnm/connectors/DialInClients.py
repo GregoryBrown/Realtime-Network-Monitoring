@@ -18,7 +18,6 @@ from protos.gnmi_pb2 import (
     TypedValue
 )
 from utils.utils import create_gnmi_path
-from memory_profiler import profile
 
 
 class DialInClient(Process):
@@ -154,11 +153,9 @@ class DialInClient(Process):
                 stub: gRPConfigOperStub = self._get_ems_stub()
                 sub_args: CreateSubsArgs = CreateSubsArgs(ReqId=1, encode=self.encoding,
                                                       Subscriptions=self.subs)
-                #from guppy import hpy
-                #h = hpy()
+                
                 for segment in stub.CreateSubs(sub_args, timeout=self._timeout,
                                                metadata=self._metadata):
-                #    self.log.info(h.heap())
                     if segment.errors:
                         raise grpc.RpcError(segment.errors)
                     else:
