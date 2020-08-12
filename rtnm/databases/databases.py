@@ -1,11 +1,11 @@
 import json
 import gzip
-from logging import Logger
+from logging import Logger, getLogger
 from requests import request, Response
 from errors.errors import ElasticSearchUploaderError
 from typing import Dict, Any, List
 from parsers.Parsers import ParsedResponse
-
+from datetime import datetime
 
 class ElasticSearchUploader:
     """ElasticSearchUploader creates a connection to an ElasticSearch instance
@@ -17,9 +17,10 @@ class ElasticSearchUploader:
     :type log: Logger
     """
 
-    def __init__(self, elastic_server: str, elastic_port: str, log: Logger) -> None:
+    def __init__(self, elastic_server: str, elastic_port: str, log_name: str) -> None:
         self.url: str = f"http://{elastic_server}:{elastic_port}"
-        self.log: Logger = log
+        self.log: Logger = getLogger(log_name) 
+        self.log.debug(self.url)
 
     def _post_parsed_response(self, data: str) -> None:
         """ Post data to an ES instance with a given index
@@ -32,7 +33,7 @@ class ElasticSearchUploader:
         self.log.debug(data)
         headers: Dict[str, Any] = {"Content-Encoding": "gzip", "Content-Type": "application/x-ndjson"}
         data_to_post: bytes = gzip.compress(data.encode("utf-8"))
-        post_response: Response = request("POST", f"{self.url}/_bulk", data=data_to_post, headers=headers)
+        post_response: Response = request("POST", f"{self.url}/_bulk?timeout=120s", data=data_to_post, headers=headers)
         if post_response.status_code not in [200, 201]:
             self.log.error(data)
             self.log.error(post_response)
@@ -44,7 +45,7 @@ class ElasticSearchUploader:
         :param data: The data to upload to Elastic Search
         :type data: List[ParsedGetResponse]
         """
-
+        start = datetime.now()
         payload_list: List[Dict[str, Any]] = []
         for parsed_response in data:
             index: str = parsed_response.dict_to_upload.pop("index")
@@ -57,3 +58,6 @@ class ElasticSearchUploader:
         if data_to_post.strip():
             data_to_post += "\n"
             self._post_parsed_response(data_to_post)
+        end = datetime.now()
+        total_time = end - start
+        self.log.debug(f"Total Batch time took {total_time}")

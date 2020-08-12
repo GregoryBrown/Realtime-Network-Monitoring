@@ -18,7 +18,9 @@ from databases.databases import ElasticSearchUploader
 from errors.errors import IODefinedError, ElasticSearchUploaderError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
+from guppy import hpy
 
+h = hpy()
 
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
                             log_name: str, tsdb_args: Dict[str, str]):
@@ -36,7 +38,7 @@ def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Opti
     processor_log: Logger = getLogger(log_name)
     processor_log.debug("Creating Uploader and parser")
     es_uploader: ElasticSearchUploader = ElasticSearchUploader(tsdb_args["address"],
-                                                               tsdb_args["port"], processor_log)
+                                                               tsdb_args["port"], log_name)
     es_parser: ElasticSearchParser = ElasticSearchParser(batch_list, log_name)
     try:
         parsed_responses: List[ParsedResponse] = es_parser.decode_and_parse_raw_responses()
@@ -91,7 +93,6 @@ def main():
         with Pool(processes=args.worker_pool_size) as worker_pool:
             client_conns: List[Union[DialInClient, TLSDialInClient]] = []
             data_queue: Queue = Queue()
-            batch_list: List[Tuple[str, str, Optional[str], Optional[str]]] = []
             rtnm_log.logger.info("Starting inputs and outputs")
             for client in inputs:
                 if inputs[client]["io"] == "out":
@@ -103,23 +104,22 @@ def main():
                         with open(inputs[client]["pem-file"], "rb") as file_desc:
                             pem = file_desc.read()
                         rtnm_log.logger.info(f"Creating TLS Connector for {client}")
-                        client_conns.append(TLSDialInClient(pem,
-                                                            Value(c_bool, False), data_queue,
+                        client_conns.append(TLSDialInClient(pem, data_queue,
                                                             log_name, **inputs[client],
                                                             name=client))
                     else:
                         rtnm_log.logger.info(f"Creating Connector for {client}")
-                        client_conns.append(DialInClient(Value(c_bool, False), data_queue,
+                        client_conns.append(DialInClient(data_queue,
                                                          log_name, **inputs[client], name=client))
 
             for client in client_conns:
                 rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
                 client.start()
 
+            batch_list: List[Tuple[str, str, Optional[str], Optional[str]]] = []
             while all([client.is_alive() for client in client_conns]):
                 try:
                     data: Tuple[str, str, Optional[str], Optional[str]] = data_queue.get(timeout=1)
-                    # rtnm_log.logger.debug(data)
                     if data is not None:
                         batch_list.append(data)
                         if len(batch_list) >= int(args.batch_size):
@@ -137,11 +137,14 @@ def main():
     except NotImplementedError as error:
         rtnm_log.logger.error(error)
     except Exception as error:
+        import traceback
+        rtnm_log.logger.error(traceback.print_exc())
         rtnm_log.logger.error(error)
     finally:
+        rtnm_log.logger.info("In cleanup")
         cleanup(log_listener)
         for client in client_conns:
-            client.join()
+            client.terminate()
 
 
 if __name__ == "__main__":

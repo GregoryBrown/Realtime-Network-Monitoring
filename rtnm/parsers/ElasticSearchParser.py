@@ -157,11 +157,6 @@ class ElasticSearchParser(RTNMParser):
             return func(getattr(value, value_by_type))
 
     def parse_ems(self, response: Telemetry, version: Optional[str]) -> List[ParsedResponse]:
-        self.log.debug("In parse_ems")
-        node_str = response.node_id_str
-        start_yang_path = response.encoding_path
-        version = version
-
         def parse_keys(key_dict: TelemetryField) -> Dict[str, Any]:
             keys: Dict[str, Any] = {}
 
@@ -205,41 +200,54 @@ class ElasticSearchParser(RTNMParser):
         def parse_data_gpbkv(telemetry_fields: List[TelemetryField]) -> List[Tuple[Dict[str, Any], List[Dict[str, Any]], int]]:
             all_responses: List[Tuple[Dict[str, Any], List[Dict[str, Any]], int]] = []
             for telemetry_field in telemetry_fields:
-                keys, content = parse_telemetry_field(telemetry_field)
-                all_responses.append((keys, content, telemetry_field.timestamp))
+                if telemetry_field.delete:
+                    keys = parse_keys(telemetry_field.fields[0])
+                    all_responses.append((keys, [{"":{"delete":True}}], telemetry_field.timestamp))
+                else:
+                    keys, content = parse_telemetry_field(telemetry_field)
+                    all_responses.append((keys, content, telemetry_field.timestamp))
             return all_responses
 
+
+
+        self.log.debug("In parse_ems")
+        node_str = response.node_id_str
+        start_yang_path = response.encoding_path
+        version = version
         parsed_responses: List[Tuple[Dict[str, Any], List[Dict[str, Any]], int]] = parse_data_gpbkv(response.data_gpbkv)
         parsed_list: List[ParsedResponse] = []
-        for parsed_response in parsed_responses:
-            keys, content_list, timestamp = parsed_response
-            for content_entry in content_list:
-                parsed_dict: Dict[str, Any] = {}
-                parsed_dict["keys"] = keys
-                parsed_dict["@timestamp"] = timestamp
-                total_yang_path = f"{start_yang_path}{list(content_entry.keys())[0]}"
-                parsed_dict["content"] = list(content_entry.values())[0]
-                parsed_dict["yang_path"] = total_yang_path
-                parsed_dict["index"] = yang_path_to_es_index(total_yang_path, "grpc")
-                parsed_list.append(ParsedResponse(parsed_dict, version, node_str))
+        try:
+            for parsed_response in parsed_responses:
+                keys, content_list, timestamp = parsed_response
+                for content_entry in content_list:
+                    parsed_dict: Dict[str, Any] = {}
+                    parsed_dict["keys"] = keys
+                    parsed_dict["@timestamp"] = timestamp
+                    total_yang_path = f"{start_yang_path}{list(content_entry.keys())[0]}"
+                    parsed_dict["content"] = list(content_entry.values())[0]
+                    parsed_dict["yang_path"] = total_yang_path
+                    parsed_dict["index"] = yang_path_to_es_index(total_yang_path, "grpc")
+                    parsed_list.append(ParsedResponse(parsed_dict, version, node_str))
                 # yield ParsedResponse(parsed_dict, version, node_str)
-        return parsed_list
+            return parsed_list
+        except Exception as error:
+            self.log.error(error)
+
 
     def decode_and_parse_raw_responses(self) -> List[ParsedResponse]:
         self.log.debug("In decode and parse")
         parsed_list: List[ParsedResponse] = []
-        for response in self.raw_responses:
-            gpb_encoding = response[0]
-            try:
+        try:
+            for response in self.raw_responses:
+                gpb_encoding = response[0]
                 decoded_response = self._decode(response)
                 self.log.debug(decoded_response)
                 if gpb_encoding == "gnmi":
                     parsed_list.extend(self.parse_gnmi(decoded_response, response[2], response[3]))
                 else:
                     parsed_list.extend(self.parse_ems(decoded_response, response[3]))
-            except Exception as error:
-                self.log.error(error)
-                import traceback
-                self.log.error(traceback.print_exc())
-                
+        except Exception as error:
+            self.log.error(error)
+            import traceback
+            self.log.error(traceback.print_exc())    
         return parsed_list
