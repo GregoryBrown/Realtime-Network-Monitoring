@@ -84,7 +84,7 @@ def main():
     output: Dict[str, str] = outputs[next(iter(outputs))]
     path: Path = Path().absolute() / "logs"
     log_queue: Queue = Queue()
-    log_name: str = f"rtnm"
+    log_name: str = f"rtnm-{args.config.strip('.ini')}"
     log_listener, rtnm_log = init_logs(log_name, path, log_queue, args.debug)
     try:
         rtnm_log.logger.info("Creating worker pool")
@@ -124,7 +124,7 @@ def main():
                         batch_list.append(data)
                         if len(batch_list) >= int(args.batch_size):
                             rtnm_log.logger.debug("Uploading full batch size")
-                            worker_pool.apply(process_and_upload_data,
+                            worker_pool.apply_async(process_and_upload_data,
                                               (batch_list, log_name, output))
                             batch_list.clear()
                 except Empty:
