@@ -20,6 +20,7 @@ from errors.errors import IODefinedError, ElasticSearchUploaderError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
 
+
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
                             log_name: str, tsdb_args: Dict[str, str]):
     """Process the raw responses from gRPC/gNMI client and upload to a TSDB
@@ -84,7 +85,7 @@ def main():
     output: Dict[str, str] = outputs[next(iter(outputs))]
     path: Path = Path().absolute() / "logs"
     log_queue: Queue = Queue()
-    log_name: str = f"rtnm-{args.config.strip('.ini')}"
+    log_name: str = f"rtnm-{args.config.strip('ini').strip('.')}"
     log_listener, rtnm_log = init_logs(log_name, path, log_queue, args.debug)
     try:
         rtnm_log.logger.info("Creating worker pool")
@@ -119,24 +120,23 @@ def main():
                 rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
                 client.start()
             batch_list: List[Tuple[str, str, Optional[str], Optional[str]]] = []
-        
             while all([client.is_alive() for client in client_conns]):
                 try:
-                    #rtnm_log.logger.info(data_queue.qsize())
+                    # rtnm_log.logger.info(data_queue.qsize())
                     data: Tuple[str, str, Optional[str], Optional[str]] = data_queue.get(timeout=1)
                     if data is not None:
                         batch_list.append(data)
                         if len(batch_list) >= args.batch_size:
                             rtnm_log.logger.debug("Uploading full batch size")
                             result = worker_pool.apply_async(process_and_upload_data,
-                                                    (deepcopy(batch_list), log_name, output))
+                                                             (deepcopy(batch_list), log_name, output))
                             del result
                             batch_list.clear()
                 except Empty:
                     if len(batch_list) != 0:
                         rtnm_log.logger.debug(f"Uploading data of length {len(batch_list)}")
                         result = worker_pool.apply_async(process_and_upload_data,
-                                                (deepcopy(batch_list), log_name, output))
+                                                         (deepcopy(batch_list), log_name, output))
                         del result
                         batch_list.clear()
     except NotImplementedError as error:

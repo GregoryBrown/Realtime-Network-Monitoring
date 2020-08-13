@@ -44,7 +44,7 @@ class MultiProcessQueueLogListener(Process):
         file_handler: RTNMRotatingFileHandler = RTNMRotatingFileHandler(f"{self.path}/{self.log_name}.log", maxBytes=536870912, backupCount=5)
         screen_handler: StreamHandler = StreamHandler()
         formatter: Formatter = Formatter(
-            "[%(process)s-%(processName)s][%(threadName)-10s] %(asctime)s - %(name)14s - [%(levelname)7s] - %(message)s")
+            "[%(process)s-%(processName)s][%(threadName)-10s] %(asctime)s - %(name)20s - [%(levelname)7s] - %(message)s")
         file_handler.setFormatter(formatter)
         screen_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)

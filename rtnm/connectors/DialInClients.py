@@ -21,7 +21,7 @@ from utils.utils import create_gnmi_path
 
 
 class DialInClient(Process):
-    def __init__(self, data_queue: Queue, log_name: str, options: List[Tuple[str, str]] = None, timeout: int = 100000000, *args, **kwargs):
+    def __init__(self, data_queue: Queue, log_name: str, options: List[Tuple[str, str]] = None, timeout: int = 10000000000, *args, **kwargs):
         super().__init__(name=kwargs["name"])
         if options is None:
             opts: List[Tuple[str, str]] = [("grpc.ssl_target_name_override", "ems.cisco.com")]
@@ -66,7 +66,7 @@ class DialInClient(Process):
             type=GetRequest.DataType.Value("STATE"),
             encoding=Encoding.Value("JSON_IETF"),
         )
-        response: GetResponse = stub.Get(get_message, metadata=self._metadata)
+        response: GetResponse = stub.Get(get_message, metadata=self._metadata, timeout=self._timeout)
 
         def _parse_version(version: GetResponse) -> str:
             for notification in version.notification:
@@ -84,7 +84,7 @@ class DialInClient(Process):
             type=GetRequest.DataType.Value("CONFIG"),
             encoding=Encoding.Value("JSON_IETF"),
         )
-        response: GetResponse = stub.Get(get_message, metadata=self._metadata)
+        response: GetResponse = stub.Get(get_message, metadata=self._metadata, timeout=self._timeout)
 
         def _parse_hostname(hostname_response: GetResponse) -> str:
             for notification in hostname_response.notification:
@@ -100,60 +100,56 @@ class DialInClient(Process):
     def sub_to_path(request):
         yield request
 
-    def gnmi_subscribe(self) -> Generator[Optional[Tuple[str, str, str, str]], None, None]:
+    def gnmi_subscribe(self) -> None:
+        """ Subscribe to a device via gNMI"""
         RETRY: bool = True
         MIN_BACKOFF_TIME: int = 1
         MAX_BACKOFF_TIME: int = 128
         subs: List[Subscription] = []
-        version: str = self._get_version()
-        hostname: str = self._get_hostname()
-        for sensor in self.sensors:
-            subs.append(
-                Subscription(path=create_gnmi_path(sensor), mode=self.sub_mode,
-                             sample_interval=self.sample_interval))
-        sub_list: SubscriptionList = SubscriptionList(
-            subscription=subs, mode=self.stream_mode, encoding=self.encoding,
-        )
-        sub_request: SubscribeRequest = SubscribeRequest(subscribe=sub_list)
-        try:
-            stub: gNMIStub = self._get_gnmi_stub()
-            for response in stub.Subscribe(self.sub_to_path(sub_request), metadata=self._metadata, timeout=self._timeout):
-                if response.error.message:
-                    self.log.error(response.error.message)
-                    self.log.error(response.error.code)
-                    self._connected.value = False
-                    yield None
-                elif response.sync_response:
-                    self.log.debug("Got all values atleast once")
-                else:
-                    yield ("gnmi", response.SerializeToString(), hostname, version)
-        except grpc.RpcError as error:
-            self.log.error(error.details())
-            RETRY = self.retry
-        except Exception as error:
-            self.log.error(error)
-            yield None
-        finally:
-            if RETRY:
-                delay = MIN_BACKOFF_TIME + random.randint(0, 1000) / 1000.0
-                sleep(delay)
-                if MIN_BACKOFF_TIME < MAX_BACKOFF_TIME:
-                    MIN_BACKOFF_TIME *= 2
-            else:
-                yield None
+        while RETRY:
+            try:
+                version: str = self._get_version()
+                hostname: str = self._get_hostname()
+                for sensor in self.sensors:
+                    subs.append(
+                        Subscription(path=create_gnmi_path(sensor), mode=self.sub_mode,
+                                     sample_interval=self.sample_interval))
+                sub_list: SubscriptionList = SubscriptionList(
+                    subscription=subs, mode=self.stream_mode, encoding=self.encoding,
+                )
+                sub_request: SubscribeRequest = SubscribeRequest(subscribe=sub_list)
+                stub: gNMIStub = self._get_gnmi_stub()
+                for response in stub.Subscribe(self.sub_to_path(sub_request), metadata=self._metadata, timeout=self._timeout):
+                    if response.error.message:
+                        raise grpc.RpcError(response.error.message)
+                    elif response.sync_response:
+                        self.log.debug("Got all values atleast once")
+                    else:
+                        self.queue.put_nowait(("gnmi", response.SerializeToString(), hostname, version))
+            except grpc.RpcError as error:
+                self.log.error(error)
+            except Exception as error:
+                self.log.error(error)
+            finally:
+                RETRY = self.retry
+                if RETRY:
+                    delay = MIN_BACKOFF_TIME + random.randint(0, 1000) / 1000.0
+                    sleep(delay)
+                    if MIN_BACKOFF_TIME < MAX_BACKOFF_TIME:
+                        MIN_BACKOFF_TIME *= 2
 
-    def ems_subscribe(self) -> Generator[Union[Tuple[str, str, None, None], None], None, None]:
+    def ems_subscribe(self) -> None:
         RETRY: bool = True
         MIN_BACKOFF_TIME: int = 1
         MAX_BACKOFF_TIME: int = 128
         while RETRY:
             try:
-                #version: str = self._get_version()
-                version: str = "Unknown"
+                version: str = self._get_version()
+                # version: str = "Unknown"
                 stub: gRPConfigOperStub = self._get_ems_stub()
                 sub_args: CreateSubsArgs = CreateSubsArgs(ReqId=1, encode=self.encoding,
-                                                      Subscriptions=self.subs)
-                
+                                                          Subscriptions=self.subs)
+
                 for segment in stub.CreateSubs(sub_args, timeout=self._timeout,
                                                metadata=self._metadata):
                     if segment.errors:
@@ -179,16 +175,16 @@ class DialInClient(Process):
         else:
             self.channel = grpc.insecure_channel(":".join([self._host, self._port]), self.options)
 
-    def disconnect(self):
-        self.log.info(f"Closing channel for {self.name}")
-        self.channel.close()
-
     def run(self):
-        self.connect()
-        if self._format == "gnmi":
-            self.gnmi_subscribe()
-        else:
-            self.ems_subscribe()
+        try:
+            self.connect()
+            if self._format == "gnmi":
+                self.gnmi_subscribe()
+            else:
+                self.ems_subscribe()
+        except Exception as error:
+            self.log.error(error)
+
 
 class TLSDialInClient(DialInClient):
     def __init__(self, pem, *args, **kwargs):
@@ -202,4 +198,3 @@ class TLSDialInClient(DialInClient):
                 ":".join([self._host, self._port]), credentials, self.options, compression=grpc.Compression.Gzip)
         else:
             self.channel = grpc.secure_channel(":".join([self._host, self._port]), credentials, self.options)
-    
