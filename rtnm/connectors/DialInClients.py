@@ -21,10 +21,10 @@ from utils.utils import create_gnmi_path
 
 
 class DialInClient(Process):
-    def __init__(self, data_queue: Queue, log_name: str, options: List[Tuple[str, str]] = None, timeout: int = 10000000000, *args, **kwargs):
+    def __init__(self, data_queue: Queue, log_name: str, options: List[Tuple[str, str]] = None, timeout: int = 100000000, *args, **kwargs):
         super().__init__(name=kwargs["name"])
         if options is None:
-            opts: List[Tuple[str, str]] = [("grpc.ssl_target_name_override", "ems.cisco.com")]
+            opts: List[Tuple[str, str]] = [("grpc.ssl_target_name_override", "ems.cisco.com"), ("grpc.keepalive_time_ms", 60000), ("grpc.keepalive_timeout_ms", 10000)]
         self.options: List[Tuple[str, str]] = opts
         self._host: str = kwargs["address"]
         self._port: int = kwargs["port"]
@@ -108,6 +108,7 @@ class DialInClient(Process):
         subs: List[Subscription] = []
         while RETRY:
             try:
+                self.connect()
                 version: str = self._get_version()
                 hostname: str = self._get_hostname()
                 for sensor in self.sensors:
@@ -131,6 +132,7 @@ class DialInClient(Process):
             except Exception as error:
                 self.log.error(error)
             finally:
+                self.disconnect()
                 RETRY = self.retry
                 if RETRY:
                     delay = MIN_BACKOFF_TIME + random.randint(0, 1000) / 1000.0
@@ -144,8 +146,9 @@ class DialInClient(Process):
         MAX_BACKOFF_TIME: int = 128
         while RETRY:
             try:
-                version: str = self._get_version()
-                # version: str = "Unknown"
+                self.connect()
+                #version: str = self._get_version()
+                version: str = "Unknown"
                 stub: gRPConfigOperStub = self._get_ems_stub()
                 sub_args: CreateSubsArgs = CreateSubsArgs(ReqId=1, encode=self.encoding,
                                                           Subscriptions=self.subs)
@@ -162,28 +165,29 @@ class DialInClient(Process):
             except Exception as error:
                 self.log.error(error)
             finally:
+                self.disconnect()
                 if RETRY:
                     delay = MIN_BACKOFF_TIME + random.randint(0, 1000) / 1000.0
                     sleep(delay)
                     if MIN_BACKOFF_TIME < MAX_BACKOFF_TIME:
                         MIN_BACKOFF_TIME *= 2
 
-    def connect(self):
+    def connect(self) -> None:
         if self.compression:
             self.channel = grpc.insecure_channel(":".join([self._host, self._port]), self.options,
                                                  compression=grpc.Compression.Gzip)
         else:
             self.channel = grpc.insecure_channel(":".join([self._host, self._port]), self.options)
 
+    def disconnect(self) -> None:
+        self.log.info(f"Closing channel for {self.name}")
+        self.channel.close()
+
     def run(self):
-        try:
-            self.connect()
-            if self._format == "gnmi":
-                self.gnmi_subscribe()
-            else:
-                self.ems_subscribe()
-        except Exception as error:
-            self.log.error(error)
+        if self._format == "gnmi":
+            self.gnmi_subscribe()
+        else:
+            self.ems_subscribe()
 
 
 class TLSDialInClient(DialInClient):
