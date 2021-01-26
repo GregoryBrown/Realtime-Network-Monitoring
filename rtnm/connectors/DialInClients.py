@@ -34,6 +34,7 @@ class DialInClient(Process):
             ("username", kwargs["username"]),
             ("password", kwargs["password"]),
         ]
+        self.log.info(kwargs)
         self._format: str = kwargs["format"]
         self.encoding: str = kwargs["encoding"]
         self.debug: bool = kwargs["debug"]
@@ -62,19 +63,24 @@ class DialInClient(Process):
     def _get_version(self) -> str:
         stub: gNMIStub = self._get_gnmi_stub()
         get_message: GetRequest = GetRequest(
-            path=[create_gnmi_path("openconfig-platform:components/component/state/software-version")],
+            path=[create_gnmi_path(
+                'openconfig-platform:components')],
             type=GetRequest.DataType.Value("STATE"),
             encoding=Encoding.Value("JSON_IETF"),
         )
         response: GetResponse = stub.Get(get_message, metadata=self._metadata, timeout=self._timeout)
 
         def _parse_version(version: GetResponse) -> str:
+            rc = ""
             for notification in version.notification:
                 for update in notification.update:
-                    version_rc_typed_value: TypedValue = update.val.json_ietf_val
-                    version_rc_str: str = version_rc_typed_value.decode().strip("}").strip('"')
-            return version_rc_str
-
+                    rc = json.loads(update.val.json_ietf_val)
+                    for state in rc["component"]:
+                        try:
+                            version = state["state"]["software-version"]
+                        except KeyError as error:
+                            continue
+            return version
         return _parse_version(response)
 
     def _get_hostname(self) -> str:
@@ -97,20 +103,33 @@ class DialInClient(Process):
         return _parse_hostname(response)
 
     @staticmethod
+    def _backoff() -> None:
+        min_backoff_time: int = 1
+        max_backoff_time: int = 128
+        delay = min_backoff_time + random.randint(0, 1000) / 1000.0
+        sleep(delay)
+        if min_backoff_time < max_backoff_time:
+            min_backoff_time *= 2
+
+    @staticmethod
     def sub_to_path(request):
         yield request
 
     def gnmi_subscribe(self) -> None:
         """ Subscribe to a device via gNMI"""
-        RETRY: bool = True
-        MIN_BACKOFF_TIME: int = 1
-        MAX_BACKOFF_TIME: int = 128
+        retry: bool = True
+        version: str = ""
+        hostname: str = ""
         subs: List[Subscription] = []
-        while RETRY:
+        while retry:
             try:
                 self.connect()
-                version: str = self._get_version()
-                hostname: str = self._get_hostname()
+                if not hostname:
+                    hostname: str = self._get_hostname()
+
+                if not version:
+                    version: str = self._get_version()
+
                 for sensor in self.sensors:
                     subs.append(
                         Subscription(path=create_gnmi_path(sensor), mode=self.sub_mode,
@@ -126,51 +145,43 @@ class DialInClient(Process):
                     elif response.sync_response:
                         self.log.debug("Got all values atleast once")
                     else:
-                        self.queue.put_nowait(("gnmi", response.SerializeToString(), hostname, version))
+                        self.queue.put_nowait(("gnmi", response.SerializeToString(), hostname, version, self._host))
             except grpc.RpcError as error:
                 self.log.error(error)
             except Exception as error:
                 self.log.error(error)
             finally:
                 self.disconnect()
-                RETRY = self.retry
-                if RETRY:
-                    delay = MIN_BACKOFF_TIME + random.randint(0, 1000) / 1000.0
-                    sleep(delay)
-                    if MIN_BACKOFF_TIME < MAX_BACKOFF_TIME:
-                        MIN_BACKOFF_TIME *= 2
+                retry = self.retry
+                if retry:
+                    self._backoff()
 
     def ems_subscribe(self) -> None:
-        RETRY: bool = True
-        MIN_BACKOFF_TIME: int = 1
-        MAX_BACKOFF_TIME: int = 128
-        while RETRY:
+        retry: bool = True
+        version: str = ""
+        while retry:
             try:
                 self.connect()
-                #version: str = self._get_version()
-                version: str = "Unknown"
-                stub: gRPConfigOperStub = self._get_ems_stub()
+                if not version:
+                    version: str = self._get_version()
+                stub: gRPCConfigOperStub = self._get_ems_stub()
                 sub_args: CreateSubsArgs = CreateSubsArgs(ReqId=1, encode=self.encoding,
                                                           Subscriptions=self.subs)
-
                 for segment in stub.CreateSubs(sub_args, timeout=self._timeout,
                                                metadata=self._metadata):
                     if segment.errors:
                         raise grpc.RpcError(segment.errors)
                     else:
-                        self.queue.put_nowait(("ems", segment.data, None, version))
+                        self.queue.put_nowait(("ems", segment.data, None, version, self._host))
             except grpc.RpcError as error:
                 self.log.error(error)
-                RETRY = self.retry
+                retry = self.retry
             except Exception as error:
                 self.log.error(error)
             finally:
                 self.disconnect()
-                if RETRY:
-                    delay = MIN_BACKOFF_TIME + random.randint(0, 1000) / 1000.0
-                    sleep(delay)
-                    if MIN_BACKOFF_TIME < MAX_BACKOFF_TIME:
-                        MIN_BACKOFF_TIME *= 2
+                if retry:
+                    self._backoff()
 
     def connect(self) -> None:
         if self.compression:

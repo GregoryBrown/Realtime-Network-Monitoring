@@ -7,7 +7,19 @@ from typing import Dict, Any, List
 from parsers.Parsers import ParsedResponse
 from datetime import datetime
 
-class ElasticSearchUploader:
+
+class Uploader:
+
+    def __init__(self, server: str, port: str, log_name: str) -> None:
+        self.url: str = f"http://{server}:{port}"
+        self.log: Logger = getLogger(log_name)
+        self.log.debug(self.url)
+
+    def upload(self, data: List[ParsedResponse]):
+        raise NotImplementedError("Can't call upload in base class")
+
+
+class ElasticSearchUploader(Uploader):
     """ElasticSearchUploader creates a connection to an ElasticSearch instance
     :param elastic_server: The IP of the ElasticSearch instance
     :type elastic_server: str
@@ -17,10 +29,9 @@ class ElasticSearchUploader:
     :type log: Logger
     """
 
-    def __init__(self, elastic_server: str, elastic_port: str, log_name: str) -> None:
-        self.url: str = f"http://{elastic_server}:{elastic_port}"
-        self.log: Logger = getLogger(log_name) 
-        self.log.debug(self.url)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.log.debug("Created ElasticSearchUploader")
 
     def _post_parsed_response(self, data: str) -> None:
         """ Post data to an ES instance with a given index
@@ -61,3 +72,67 @@ class ElasticSearchUploader:
         end = datetime.now()
         total_time = end - start
         self.log.debug(f"Total Batch time took {total_time}")
+
+
+class InfluxdbUploader(Uploader):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.log.debug("Created InfluxdbUploader")
+
+    def post_data(self, data: List[str]):
+        post_str: str = "\n".join(data)
+        self.url = f"{self.url}/api/v2/write?precision=ns&bucket=devdb"
+        data_to_post: bytes = gzip.compress(post_str.encode("utf-8"))
+        headers = {
+            'Content-Encoding': 'gzip',
+            'Content-Type': 'text/plain',
+            'Authorization': 'Basic YWRtaW46aW5mbHV4ZGJDIXNjbzEyMw=='
+        }
+        start = datetime.now()
+        post_response = request("POST", self.url, headers=headers, data=data_to_post)
+        if post_response.status_code not in [200, 201, 204]:
+            self.log.error(post_response)
+            self.log.error(post_response.json())
+            raise Exception("Error uploading influxdb")
+        end = datetime.now()
+        total_time = end - start
+        self.log.info(f"Total upload time took {total_time}")
+
+    def upload(self, data: List[ParsedResponse]):
+        influxdb_lines: List[str] = []
+        timestamp_inc_counter = 0
+        for entry in data:
+            tag_line: Dict[str, Any] = {}
+            for tag_key, tag_value in entry.data["keys"].items():
+                if isinstance(tag_value, str):
+                    tag_value = " ".join(tag_value.split()).strip().replace(
+                        ",", "\,").replace("=", "\=").replace('"', '')
+                    if tag_value == "":
+                        tag_line[tag_key] = f'"{tag_value}"'  # =""
+                    else:
+                        tag_line[tag_key] = tag_value
+                else:
+                    tag_line[tag_key] = tag_value
+            tag_line["encoding"] = entry.encoding
+            tag_line["hostname"] = entry.hostname
+            tag_line["ip"] = entry.ip_addr
+            tag_line["version"] = entry.version
+            field_line: List[str] = []
+            for field_key, field_value in entry.data["content"].items():
+                if isinstance(field_value, str):
+                    field_value: str = " ".join(field_value.split()).strip().replace(" ", "\ ").replace(",", "\,").replace("=", "\=").replace('"', '')
+                    if field_key not in tag_line:
+                        if not field_value:
+                            tag_line[field_key] = f'"{field_value}"'
+                        else:
+                            tag_line[field_key] = field_value
+                    field_line.append(f'{field_key}="{field_value}"')
+                else:
+                    field_line.append(f"{field_key}={field_value}")
+            field_line: str = ",".join(field_line)
+            tag_line: str = ",".join([f"{key}={value}" for key, value in tag_line.items()])
+            timestamp = entry.timestamp + timestamp_inc_counter
+            influxdb_lines.append(f"{entry.yang_path},{tag_line} {field_line} {timestamp}")
+            self.log.debug(influxdb_lines)
+            timestamp_inc_counter += 1
+        self.post_data(influxdb_lines)

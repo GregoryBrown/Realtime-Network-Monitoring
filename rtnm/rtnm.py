@@ -1,24 +1,28 @@
 """
 .. module:: rtnm
    :platform: Unix, Windows
-   :synopsis: Driver file for RTNM 
+   :synopsis: Driver file for RTNM
 .. moduleauthor:: Greg Brown <gsb5067@gmail.com>
 """
 from argparse import ArgumentParser
 from copy import deepcopy
 from pathlib import Path
 from typing import List, Dict, Union, Tuple, Optional
-from multiprocessing import Pool, Queue, Value
+from multiprocessing import Pool, Queue
 from queue import Empty
-from ctypes import c_bool
 from logging import getLogger, Logger
 
-from parsers.ElasticSearchParser import ElasticSearchParser, ParsedResponse
+from parsers.ElasticSearchParser import ParsedResponse
+from parsers.Parsers import RTNMParser
 from loggers.loggers import init_logs
-from databases.databases import ElasticSearchUploader
-from errors.errors import IODefinedError, ElasticSearchUploaderError
+from databases.databases import InfluxdbUploader
+from errors.errors import IODefinedError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
+from datetime import datetime
+
+import os
+import gc
 
 
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
@@ -33,19 +37,16 @@ def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Opti
     :type tsdb_args: Dict[str, str]
 
     """
-
+    start = datetime.now()
     processor_log: Logger = getLogger(log_name)
     processor_log.debug("Creating Uploader and parser")
-    es_uploader: ElasticSearchUploader = ElasticSearchUploader(tsdb_args["address"],
-                                                               tsdb_args["port"], log_name)
-    es_parser: ElasticSearchParser = ElasticSearchParser(batch_list, log_name)
-    try:
-        parsed_responses: List[ParsedResponse] = es_parser.decode_and_parse_raw_responses()
-        es_uploader.upload(parsed_responses)
-    except ElasticSearchUploaderError as error:
-        processor_log.error(error)
-    except Exception as error:
-        processor_log.error(error)
+    parser = RTNMParser(batch_list, log_name)
+    pr: List[ParsedResponse] = parser.decode_and_parse_raw_responses()
+    uploader = InfluxdbUploader("2.2.2.54", "8086", log_name)
+    uploader.upload(pr)
+    end = datetime.now()
+    total_time = end - start
+    processor_log.info(f"Total Batch time took {total_time}")
 
 
 def cleanup(log: Queue) -> None:
@@ -57,6 +58,10 @@ def cleanup(log: Queue) -> None:
     """
     log.queue.put(None)
     log.join()
+
+
+def worker_callback(rc):
+    del rc
 
 
 def main():
@@ -96,12 +101,6 @@ def main():
             for client in inputs:
                 if inputs[client]["io"] == "out":
                     raise NotImplementedError("Dial Out is not implemented")
-            client_conns: List[Union[DialInClient, TLSDialInClient]] = []
-            data_queue: Queue = Queue()
-            rtnm_log.logger.info("Starting inputs and outputs")
-            for client in inputs:
-                if inputs[client]["io"] == "out":
-                    raise NotImplementedError("Dial Out is not implemented")
                 else:
                     inputs[client]["debug"] = args.debug
                     inputs[client]["retry"] = args.retry
@@ -119,11 +118,11 @@ def main():
             for client in client_conns:
                 rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
                 client.start()
-            batch_list: List[Tuple[str, str, Optional[str], Optional[str]]] = []
+            batch_list: List[Tuple[str, str, Optional[str], Optional[str], str]] = []
             while all([client.is_alive() for client in client_conns]):
                 try:
-                    # rtnm_log.logger.info(data_queue.qsize())
-                    data: Tuple[str, str, Optional[str], Optional[str]] = data_queue.get(timeout=1)
+                    worker_pool._cache = {}
+                    data: Tuple[str, str, Optional[str], Optional[str], str] = data_queue.get(timeout=10)
                     if data is not None:
                         batch_list.append(data)
                         if len(batch_list) >= args.batch_size:
@@ -139,6 +138,9 @@ def main():
                                                          (deepcopy(batch_list), log_name, output))
                         del result
                         batch_list.clear()
+                except Exception as error:
+                    rtnm_log.logger.error(error)
+
     except NotImplementedError as error:
         rtnm_log.logger.error(error)
     except Exception as error:
