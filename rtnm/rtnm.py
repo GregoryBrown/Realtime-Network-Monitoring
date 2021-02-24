@@ -95,31 +95,31 @@ def main():
     log_listener, rtnm_log = init_logs(log_name, path, log_queue, args.debug)
     try:
         rtnm_log.logger.info("Creating worker pool")
-        with Pool(processes=args.worker_pool_size) as worker_pool:
-            client_conns: List[Union[DialInClient, TLSDialInClient]] = []
-            data_queue: Queue = Queue()
-            rtnm_log.logger.info("Starting inputs and outputs")
-            for client in inputs:
-                if inputs[client]["io"] == "out":
-                    raise NotImplementedError("Dial Out is not implemented")
+        client_conns: List[Union[DialInClient, TLSDialInClient]] = []
+        data_queue: Queue = Queue()
+        rtnm_log.logger.info("Starting inputs and outputs")
+        for client in inputs:
+            if inputs[client]["io"] == "out":
+                raise NotImplementedError("Dial Out is not implemented")
+            else:
+                inputs[client]["debug"] = args.debug
+                inputs[client]["retry"] = args.retry
+                if "pem-file" in inputs[client]:
+                    with open(inputs[client]["pem-file"], "rb") as file_desc:
+                        pem = file_desc.read()
+                    rtnm_log.logger.info(f"Creating TLS Connector for {client}")
+                    client_conns.append(TLSDialInClient(pem, data_queue,
+                                                        log_name, **inputs[client],
+                                                        name=client))
                 else:
-                    inputs[client]["debug"] = args.debug
-                    inputs[client]["retry"] = args.retry
-                    if "pem-file" in inputs[client]:
-                        with open(inputs[client]["pem-file"], "rb") as file_desc:
-                            pem = file_desc.read()
-                        rtnm_log.logger.info(f"Creating TLS Connector for {client}")
-                        client_conns.append(TLSDialInClient(pem, data_queue,
-                                                            log_name, **inputs[client],
-                                                            name=client))
-                    else:
-                        rtnm_log.logger.info(f"Creating Connector for {client}")
-                        client_conns.append(DialInClient(data_queue,
-                                                         log_name, **inputs[client], name=client))
-            for client in client_conns:
-                rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
-                client.start()
-            batch_list: List[Tuple[str, str, Optional[str], Optional[str], str]] = []
+                    rtnm_log.logger.info(f"Creating Connector for {client}")
+                    client_conns.append(DialInClient(data_queue,
+                                                     log_name, **inputs[client], name=client))
+        for client in client_conns:
+            rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
+            client.start()
+        batch_list: List[Tuple[str, str, Optional[str], Optional[str], str]] = []
+        with Pool(processes=args.worker_pool_size) as worker_pool:
             while all([client.is_alive() for client in client_conns]):
                 try:
                     data: Tuple[str, str, Optional[str], Optional[str], str] = data_queue.get(timeout=10)
@@ -127,19 +127,23 @@ def main():
                         batch_list.append(data)
                         if len(batch_list) >= args.batch_size:
                             rtnm_log.logger.debug("Uploading full batch size")
-                            result = worker_pool.apply(process_and_upload_data,
-                                                       (deepcopy(batch_list), log_name, output))
+                            result = worker_pool.apply_async(process_and_upload_data,
+                                                             (deepcopy(batch_list), log_name, output))
                             del result
                             batch_list.clear()
                 except Empty:
                     if len(batch_list) != 0:
                         rtnm_log.logger.debug(f"Uploading data of length {len(batch_list)}")
-                        result = worker_pool.apply(process_and_upload_data,
-                                                   (deepcopy(batch_list), log_name, output))
+                        result = worker_pool.apply_async(process_and_upload_data,
+                                                         (deepcopy(batch_list), log_name, output))
                         del result
                         batch_list.clear()
                 except Exception as error:
                     rtnm_log.logger.error(error)
+                    rtnm_log.logger.error("Error during worker pool, going to cleanup")
+                    cleanup(log_listener)
+                    for client in client_conns:
+                        client.terminate()
 
     except NotImplementedError as error:
         rtnm_log.logger.error(error)
