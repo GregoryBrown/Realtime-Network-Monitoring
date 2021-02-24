@@ -61,10 +61,6 @@ def cleanup(log: Queue) -> None:
     log.join()
 
 
-def worker_callback(rc):
-    del rc
-
-
 def main():
     """RTNM main function used for getting the users arguements and spawns processes for each
     connection and handles dispatching of responses into a worker pool for processing
