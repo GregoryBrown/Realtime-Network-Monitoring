@@ -1,10 +1,10 @@
-import grpc
-import json
-import random
+from multiprocessing import Process, Queue
+from typing import List, Tuple
 from time import sleep
 from logging import Logger, getLogger
-from typing import List, Tuple, Generator, Union, Optional
-from multiprocessing import Process, Queue, Value
+import json
+import random
+import grpc
 from protos.cisco_mdt_dial_in_pb2_grpc import gRPCConfigOperStub
 from protos.cisco_mdt_dial_in_pb2 import CreateSubsArgs
 from protos.gnmi_pb2_grpc import gNMIStub
@@ -34,7 +34,6 @@ class DialInClient(Process):
             ("username", kwargs["username"]),
             ("password", kwargs["password"]),
         ]
-        self.log.info(kwargs)
         self._format: str = kwargs["format"]
         self.encoding: str = kwargs["encoding"]
         self.debug: bool = kwargs["debug"]
@@ -44,13 +43,13 @@ class DialInClient(Process):
             self.sub_mode = kwargs["subscription-mode"]
             self.sensors: List[str] = kwargs["sensors"]
             self.sample_interval: int = kwargs["sample-interval"]
-            self.stream_mode = kwargs["stream-mode"]
+            self.stream_mode: str = kwargs["stream-mode"]
         else:
             self.subs: List[str] = kwargs["subscriptions"]
         self._timeout: float = float(timeout)
-        self.gnmi_stub = None
-        self.cisco_ems_stub = None
-        self.log.debug(f"Finished initialzing {self.name}")
+        self.gnmi_stub: gNMIStub = None
+        self.cisco_ems_stub: gRPCConfigOperStub = None
+        self.log.debug("Finished initialzing %s", self.name)
 
     def _get_gnmi_stub(self) -> gNMIStub:
         self.gnmi_stub: gNMIStub = gNMIStub(self.channel)
@@ -64,7 +63,7 @@ class DialInClient(Process):
         stub: gNMIStub = self._get_gnmi_stub()
         get_message: GetRequest = GetRequest(
             path=[create_gnmi_path(
-                'openconfig-platform:components')],
+                'Cisco-IOS-XR-install-oper:install/version')],
             type=GetRequest.DataType.Value("STATE"),
             encoding=Encoding.Value("JSON_IETF"),
         )
@@ -75,12 +74,7 @@ class DialInClient(Process):
             for notification in version.notification:
                 for update in notification.update:
                     rc = json.loads(update.val.json_ietf_val)
-                    for state in rc["component"]:
-                        try:
-                            version = state["state"]["software-version"]
-                        except KeyError as error:
-                            continue
-            return version
+                    return rc["label"]
         return _parse_version(response)
 
     def _get_hostname(self) -> str:
@@ -106,7 +100,7 @@ class DialInClient(Process):
     def _backoff() -> None:
         min_backoff_time: int = 1
         max_backoff_time: int = 128
-        delay = min_backoff_time + random.randint(0, 1000) / 1000.0
+        delay: float = min_backoff_time + random.randint(0, 1000) / 1000.0
         sleep(delay)
         if min_backoff_time < max_backoff_time:
             min_backoff_time *= 2
@@ -118,18 +112,16 @@ class DialInClient(Process):
     def gnmi_subscribe(self) -> None:
         """ Subscribe to a device via gNMI"""
         retry: bool = True
-        version: str = ""
-        hostname: str = ""
         subs: List[Subscription] = []
+        hostname: str = ""
+        version: str = ""
         while retry:
             try:
                 self.connect()
                 if not hostname:
                     hostname: str = self._get_hostname()
-
                 if not version:
                     version: str = self._get_version()
-
                 for sensor in self.sensors:
                     subs.append(
                         Subscription(path=create_gnmi_path(sensor), mode=self.sub_mode,

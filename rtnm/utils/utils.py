@@ -68,6 +68,14 @@ def generate_clients(in_file: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 output_clients[section] = {}
                 output_clients[section]["address"] = config[section]["address"]
                 output_clients[section]["port"] = config[section]["port"]
+                output_clients[section]["type"] = config[section]["type"]
+                if "database" in config[section]:
+                    output_clients[section]["database"] = config[section]["database"]
+                if "username" in config[section]:
+                    output_clients[section]["username"] = config[section]["username"]
+                if "password" in config[section]:
+                    output_clients[section]["password"] = config[section]["password"]
+
         return input_clients, output_clients
 
 

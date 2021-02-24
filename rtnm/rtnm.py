@@ -15,14 +15,11 @@ from logging import getLogger, Logger
 from parsers.ElasticSearchParser import ParsedResponse
 from parsers.Parsers import RTNMParser
 from loggers.loggers import init_logs
-from databases.databases import InfluxdbUploader
+from databases.databases import InfluxdbUploader, ElasticSearchUploader
 from errors.errors import IODefinedError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
 from datetime import datetime
-
-import os
-import gc
 
 
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
@@ -37,12 +34,16 @@ def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Opti
     :type tsdb_args: Dict[str, str]
 
     """
-    start = datetime.now()
     processor_log: Logger = getLogger(log_name)
     processor_log.debug("Creating Uploader and parser")
     parser = RTNMParser(batch_list, log_name)
+    start = datetime.now()
     pr: List[ParsedResponse] = parser.decode_and_parse_raw_responses()
-    uploader = InfluxdbUploader("2.2.2.54", "8086", log_name)
+    tsdb_args["log_name"] = log_name
+    if tsdb_args["type"] == "elasticsearch":
+        uploader = ElasticSearchUploader(**tsdb_args)
+    else:
+        uploader = InfluxdbUploader(**tsdb_args)
     uploader.upload(pr)
     end = datetime.now()
     total_time = end - start
@@ -121,21 +122,20 @@ def main():
             batch_list: List[Tuple[str, str, Optional[str], Optional[str], str]] = []
             while all([client.is_alive() for client in client_conns]):
                 try:
-                    worker_pool._cache = {}
                     data: Tuple[str, str, Optional[str], Optional[str], str] = data_queue.get(timeout=10)
                     if data is not None:
                         batch_list.append(data)
                         if len(batch_list) >= args.batch_size:
                             rtnm_log.logger.debug("Uploading full batch size")
-                            result = worker_pool.apply_async(process_and_upload_data,
-                                                             (deepcopy(batch_list), log_name, output))
+                            result = worker_pool.apply(process_and_upload_data,
+                                                       (deepcopy(batch_list), log_name, output))
                             del result
                             batch_list.clear()
                 except Empty:
                     if len(batch_list) != 0:
                         rtnm_log.logger.debug(f"Uploading data of length {len(batch_list)}")
-                        result = worker_pool.apply_async(process_and_upload_data,
-                                                         (deepcopy(batch_list), log_name, output))
+                        result = worker_pool.apply(process_and_upload_data,
+                                                   (deepcopy(batch_list), log_name, output))
                         del result
                         batch_list.clear()
                 except Exception as error:
