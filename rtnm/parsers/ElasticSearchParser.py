@@ -7,8 +7,8 @@
 from typing import List, Union, Optional, Tuple, Dict, Any
 import json
 from parsers.Parsers import RTNMParser, ParsedResponse
-from protos.gnmi_pb2 import SubscribeResponse, TypedValue, Update
-from protos.telemetry_pb2 import Telemetry, TelemetryField
+from protos.gnmi_pb2 import SubscribeResponse, TypedValue, Update  # type: ignore
+from protos.telemetry_pb2 import Telemetry, TelemetryField  # type: ignore
 from utils.utils import yang_path_to_es_index
 
 
@@ -202,13 +202,11 @@ class ElasticSearchParser(RTNMParser):
             for telemetry_field in telemetry_fields:
                 if telemetry_field.delete:
                     keys = parse_keys(telemetry_field.fields[0])
-                    all_responses.append((keys, [{"":{"delete":True}}], telemetry_field.timestamp))
+                    all_responses.append((keys, [{"": {"delete": True}}], telemetry_field.timestamp))
                 else:
                     keys, content = parse_telemetry_field(telemetry_field)
                     all_responses.append((keys, content, telemetry_field.timestamp))
             return all_responses
-
-
 
         self.log.debug("In parse_ems")
         node_str = response.node_id_str
@@ -233,7 +231,6 @@ class ElasticSearchParser(RTNMParser):
         except Exception as error:
             self.log.error(error)
 
-
     def decode_and_parse_raw_responses(self) -> List[ParsedResponse]:
         self.log.debug("In decode and parse")
         parsed_list: List[ParsedResponse] = []
@@ -249,5 +246,5 @@ class ElasticSearchParser(RTNMParser):
         except Exception as error:
             self.log.error(error)
             import traceback
-            self.log.error(traceback.print_exc())    
+            self.log.error(traceback.print_exc())
         return parsed_list

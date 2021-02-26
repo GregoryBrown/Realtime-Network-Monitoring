@@ -11,7 +11,7 @@ from typing import List, Dict, Union, Tuple, Optional
 from multiprocessing import Pool, Queue
 from queue import Empty
 from logging import getLogger, Logger
-
+from datetime import datetime
 from parsers.ElasticSearchParser import ParsedResponse
 from parsers.Parsers import RTNMParser
 from loggers.loggers import init_logs
@@ -19,7 +19,6 @@ from databases.databases import InfluxdbUploader, ElasticSearchUploader
 from errors.errors import IODefinedError
 from connectors.DialInClients import DialInClient, TLSDialInClient
 from utils.utils import generate_clients
-from datetime import datetime
 
 
 def process_and_upload_data(batch_list: List[Tuple[str, str, Optional[str], Optional[str]]],
