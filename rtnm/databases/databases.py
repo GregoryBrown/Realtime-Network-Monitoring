@@ -130,6 +130,7 @@ class InfluxdbUploader(Uploader):
             self.log.error(post_response)
             self.log.error(post_response.raw)
             self.log.error(post_response.json())
+            self.log.error(post_response.text)
         end = datetime.now()
         total_time = end - start
         self.log.info(f"Total upload time took {total_time}")
@@ -162,6 +163,7 @@ class InfluxdbUploader(Uploader):
                             tag_line[field_key] = f'"{field_value}"'
                         else:
                             tag_line[field_key] = field_value
+                    field_line.append(f'{field_key}="{field_value}"')
                 else:
                     field_line.append(f"{field_key}={field_value}")
             field_line: str = ",".join(field_line)
