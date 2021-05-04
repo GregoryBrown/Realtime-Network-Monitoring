@@ -1,10 +1,16 @@
+"""
+.. module:: DialInClients
+   :platform: Unix, Windows
+   :synopsis: Class file of the gRPC connectors for dial in subscriptions
+.. moduleauthor:: Greg Brown <gsb5067@gmail.com>
+"""
+import json
+import random
+import grpc
 from multiprocessing import Process, Queue
 from typing import List, Tuple
 from time import sleep
 from logging import Logger, getLogger
-import json
-import random
-import grpc
 from protos.cisco_mdt_dial_in_pb2_grpc import gRPCConfigOperStub
 from protos.cisco_mdt_dial_in_pb2 import CreateSubsArgs
 from protos.gnmi_pb2_grpc import gNMIStub
@@ -21,6 +27,17 @@ from utils.utils import create_gnmi_path
 
 
 class DialInClient(Process):
+    """ Dial in class that represents a process that connects to the gRPC device
+
+    :param data_queue: The queue used from transfer the raw string data from the connector process
+    to the main process for upload
+    :type data_queue: Queue
+    :param log_name: The log name that will be used for logging
+    :type log_name: str
+    :param options:
+
+    """
+
     def __init__(self, data_queue: Queue, log_name: str, options: List[Tuple[str, str]] = None, timeout: int = 100000000, *args, **kwargs):
         super().__init__(name=kwargs["name"])
         if options is None:
@@ -50,6 +67,8 @@ class DialInClient(Process):
         self.gnmi_stub: gNMIStub = None
         self.cisco_ems_stub: gRPCConfigOperStub = None
         self.log.debug("Finished initialzing %s", self.name)
+        self.min_backoff_time: int = 1
+        self.max_backoff_time: int = 128
 
     def _get_gnmi_stub(self) -> gNMIStub:
         self.gnmi_stub: gNMIStub = gNMIStub(self.channel)
@@ -96,17 +115,13 @@ class DialInClient(Process):
 
         return _parse_hostname(response)
 
-    @staticmethod
-    def _backoff() -> None:
-        min_backoff_time: int = 1
-        max_backoff_time: int = 128
-        delay: float = min_backoff_time + random.randint(0, 1000) / 1000.0
+    def _backoff(self) -> None:
+        delay: float = self.min_backoff_time + random.randint(0, 1000) / 1000.0
         sleep(delay)
-        if min_backoff_time < max_backoff_time:
-            min_backoff_time *= 2
+        if self.min_backoff_time < self.max_backoff_time:
+            self.min_backoff_time *= 2
 
-    @staticmethod
-    def sub_to_path(request):
+    def sub_to_path(self, request):
         yield request
 
     def gnmi_subscribe(self) -> None:

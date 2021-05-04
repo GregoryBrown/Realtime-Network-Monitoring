@@ -14,3 +14,7 @@ class DecodeError(Exception):
 
 class ElasticSearchUploaderError(Exception):
     pass
+
+
+class ConfigError(Exception):
+    pass

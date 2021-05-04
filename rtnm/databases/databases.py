@@ -61,12 +61,15 @@ class ElasticSearchUploader(Uploader):
         """
         self.log.debug(data)
         data_to_post: bytes = gzip.compress(data.encode("utf-8"))
-        post_response: Response = request("POST", f"{self.url}/_bulk?timeout=120s", data=data_to_post, headers=self.headers)
-        if post_response.status_code not in [200, 201]:
-            self.log.error(data)
-            self.log.error(post_response)
-            self.log.error(post_response.json())
-            raise ElasticSearchUploaderError("Error while posting data to ElasticSearch")
+        try:
+            post_response: Response = request("POST", f"{self.url}/_bulk", data=data_to_post, headers=self.headers)
+            if post_response.status_code not in [200, 201]:
+                self.log.error(data)
+                self.log.error(post_response)
+                self.log.error(post_response.json())
+                raise ElasticSearchUploaderError("Error while posting data to ElasticSearch")
+        except Exception as error:
+            self.log.error(error)
 
     def upload(self, data: List[ParsedResponse]):
         """Upload operation data into Elasticsearch
@@ -77,15 +80,16 @@ class ElasticSearchUploader(Uploader):
             start = datetime.now()
             payload_list: List[Dict[str, Any]] = []
             for parsed_response in data:
-                index: str = yang_path_to_es_index(parsed_response.yang_path, parsed_response.encoding)
+                index: str = yang_path_to_es_index(parsed_response.yang_path)
                 elastic_index: Dict[str, Any] = {"index": {"_index": f"{index}"}}
                 elastic_data: Dict[str, Any] = {}
                 elastic_data["hostname"] = parsed_response.hostname
                 elastic_data["version"] = parsed_response.version
                 elastic_data["yang_path"] = parsed_response.yang_path
                 elastic_data["@timestamp"] = parsed_response.timestamp
+                elastic_data["encoding"] = parsed_response.encoding
                 elastic_data.update(parsed_response.data)
-                # self.log.info(elastic_data)
+                self.log.debug(elastic_data)
                 payload_list.append(elastic_index)
                 payload_list.append(elastic_data)
             data_to_post: str = "\n".join(json.dumps(d) for d in payload_list)
@@ -94,7 +98,7 @@ class ElasticSearchUploader(Uploader):
                 self._post_parsed_response(data_to_post)
             end = datetime.now()
             total_time = end - start
-            self.log.info(f"Total upload time took {total_time}")
+            self.log.info(f"Total upload time took {total_time} for Elasticsearch")
         except Exception as error:
             self.log.error(error)
 
@@ -105,6 +109,7 @@ class InfluxdbUploader(Uploader):
         self.log.debug("Created InfluxdbUploader")
         self.database = kwargs["database"]
         self.url = f"{self.url}/api/v2/write?precision=ns&bucket={self.database}"
+        self.log.debug(self.url)
         if "username" in kwargs:
             base_64_auth: str = f'{kwargs["username"]}:{kwargs["password"]}'
             base_64_auth: bytes = base64.b64encode(base_64_auth.encode())
@@ -121,18 +126,22 @@ class InfluxdbUploader(Uploader):
             }
 
     def post_data(self, data: List[str]):
-        self.log.debug(data)
+        # self.log.debug(f"DATA: {data}")
         post_str: str = "\n".join(data)
         data_to_post: bytes = gzip.compress(post_str.encode("utf-8"))
         start = datetime.now()
-        post_response = request("POST", self.url, headers=self.headers, data=data_to_post)
-        if post_response.status_code not in [200, 201, 204]:
-            self.log.error(post_response)
-            self.log.error(post_response.raw)
-            self.log.error(post_response.json())
+        try:
+            post_response = request("POST", self.url, headers=self.headers, data=data_to_post, timeout=120)
+            self.log.debug(post_response)
+            if post_response.status_code not in [200, 201, 204]:
+                self.log.error(post_response)
+                self.log.error(post_response.raw)
+                self.log.error(post_response.json())
+        except Exception as error:
+            self.log.error(error)
         end = datetime.now()
         total_time = end - start
-        self.log.info(f"Total upload time took {total_time}")
+        self.log.info(f"Total upload time took {total_time} for Influxdb")
 
     def upload(self, data: List[ParsedResponse]):
         influxdb_lines: List[str] = []
@@ -162,12 +171,13 @@ class InfluxdbUploader(Uploader):
                             tag_line[field_key] = f'"{field_value}"'
                         else:
                             tag_line[field_key] = field_value
+                    field_line.append(f'{field_key}="{field_value}"')
                 else:
                     field_line.append(f"{field_key}={field_value}")
             field_line: str = ",".join(field_line)
             tag_line: str = ",".join([f"{key}={value}" for key, value in tag_line.items()])
             timestamp = entry.timestamp + timestamp_inc_counter
             influxdb_lines.append(f"{entry.yang_path},{tag_line} {field_line} {timestamp}")
-            self.log.debug(influxdb_lines)
             timestamp_inc_counter += 1
+        self.log.debug(f"Influxdb length: {len(influxdb_lines)}")
         self.post_data(influxdb_lines)
