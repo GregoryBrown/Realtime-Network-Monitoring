@@ -33,7 +33,7 @@ snakeviz==2.1.0
 tornado==6.1
 typed-ast==1.4.3
 typing-extensions==3.7.4.3
-urllib3==1.26.4
+urllib3==1.26.5
 WebOb==1.8.7
 Werkzeug==1.0.1
 yarl==1.6.3
