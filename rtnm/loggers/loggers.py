@@ -68,4 +68,4 @@ def init_logs(name, path: Path, queue: Queue, debug: bool = False) -> Tuple[Mult
     log_listener: MultiProcessQueueLogListener = MultiProcessQueueLogListener(name, path, queue)
     log_listener.start()
     main_logger: MultiProcessQueueLogger = MultiProcessQueueLogger(name, queue, debug)
-    return log_listener, main_logger
+    return main_logger

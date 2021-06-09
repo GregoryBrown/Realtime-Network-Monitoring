@@ -32,8 +32,7 @@ class RTNMParser:
         self.raw_responses: List[Tuple[str, str, Optional[str], Optional[str], str]] = batch_list
         self.log: Logger = getLogger(log_name)
 
-    @staticmethod
-    def process_header(header: Update) -> Tuple[Dict[str, str], str]:
+    def process_header(self, header: Update) -> Tuple[Dict[str, str], str]:
         """Separate the update header into keys and the starting yang path
 
         :param header: The top level update of the gNMI response that has the keys and yang path
@@ -49,8 +48,7 @@ class RTNMParser:
                 keys.update(elem.key)
         return keys, f"{header.prefix.origin}:{'/'.join(yang_path)}"
 
-    @staticmethod
-    def get_value(type_value: TypedValue):
+    def get_value(self, type_value: TypedValue):
         """Using gNMI defined possible value encodings get the value in its native encoding_path
 
         :param type_value: The value in the response
@@ -90,15 +88,16 @@ class RTNMParser:
     def _decode(self, raw_message: Tuple[str, str, Optional[str], Optional[str]]) -> Union[SubscribeResponse, Telemetry]:
         if raw_message[0] == "gnmi":
             self.log.debug("In decode gnmi")
-            self.log.debug(raw_message[1])
+            # self.log.debug(raw_message[1])
             sub = SubscribeResponse()
             sub.ParseFromString(raw_message[1])
             return sub
         else:
             self.log.debug("In decode ems")
-            self.log.debug(raw_message[1])
+            # self.log.debug(raw_message[1])
             tele = Telemetry()
             tele.ParseFromString(raw_message[1])
+            # self.log.debug(tele)
             return tele
 
     def parse_gnmi(self, response: SubscribeResponse, hostname: str, version: str, ip: str) -> List[ParsedResponse]:
@@ -142,11 +141,10 @@ class RTNMParser:
             "double_value": float,
             "float_value": float
         }
-        if value_by_type is None:
-            return ""
-        else:
+        if value_by_type is not None:
             func = ems_values[value_by_type]
             return func(getattr(value, value_by_type))
+        return ""
 
     def parse_keys(self, key_dict: TelemetryField) -> Dict[str, Any]:
         keys: Dict[str, Any] = {}
@@ -198,7 +196,7 @@ class RTNMParser:
             for response in self.raw_responses:
                 gpb_encoding = response[0]
                 decoded_response = self._decode(response)
-                self.log.debug(decoded_response)
+                # self.log.debug(decoded_response)
                 if gpb_encoding == "gnmi":
                     parsed_list.extend(self.parse_gnmi(decoded_response,
                                                        response[2], response[3], response[4]))
