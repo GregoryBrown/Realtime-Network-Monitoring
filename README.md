@@ -86,7 +86,9 @@ database = db-test
 
 ```
  
-![RTNM-flow](https://user-images.githubusercontent.com/365160/121397992-e2701780-c922-11eb-914d-a6b8b4b97f7d.png)
+
+![RTNM-flow](https://user-images.githubusercontent.com/365160/121398334-3e3aa080-c923-11eb-98d3-37e08d2d3c6e.jpg)
+
 
 For each input section of the config file a separate process is spawned and a gRPC channel is created.
 When data is flowed from the device to the processes it is added to a queue in which the main process batches the data and sends it to a worker pool for the parsing and uploading of the data.  This decoupling strategy allows RTNM to handel GBs of data a second all the while having robustness.
