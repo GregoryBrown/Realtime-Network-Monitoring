@@ -32,72 +32,58 @@ optional arguments:
  ```
 
   
-# Configuration File Sample 
+# Sample Configuration File  
 ```
-[dial-in-cisco-ems]
-#Required
+#For Cisco native model driven telemetry (MDT)
+[Cisco-gRPC-MDT]
+#required
+io = input
+#required, only supporting dial in right now
+dial = in
+#required, only supporting self-describing-gpb as of now
+encoding = self-describing-gpb
+#required, letting RTNM know we are using cisco native proto
+format = cisco-ems
+#A list of subscriptions to subscribe to on the box
+subscriptions = CPU, MEMORY, DPA
+address = 100.80.170.12
+port = 57400
+username = root
+password = root
+# If using TLS authenticaiton need to get the pem file off the router first
+pem-file = Router.pem
+# Can be set to False if you don't want to use gRPC's builtin gZip compression 
+compression = True
+
+[gNMI-MDT]
 io = input
 dial = in
-encoding = kvgpb
-format = cisco-ems
-#Required for cisco-ems, can be a , separated list
-subs = DPA
-address = 10.8.70.42
+#required, only support PROTO as of now
+encoding = PROTO
+format = gnmi
+#Comma separated list of sensor paths to monitor
+sensors =  Cisco-IOS-XR-infra-statsd-oper:infra-statistics/interfaces/interface/latest/generic-counters
+sample-interval = 30
+#Type of mode to sample, defined in the gNMI proto file
+subscription-mode = SAMPLE
+stream-mode = STREAM
+address = 10.8.70.2
 port = 57400
 username = root
 password = lablab
-#Optional
-pem-file = Test.pem
-batch-size = 200
+pem-file =  Router.pem
+compression = True
 
-[dial-in-gnmi]
-#input or output
-io = input
-#in or out
-dial = in
-#kvgpb only supported now 
-encoding = kvgpb
-#gnmi, cisco-ems
-format = gnmi
-#Required for gNMI, can be a , separated list
-sensors = Cisco-IOS-XR-ethernet-lldp-oper:lldp/nodes/node/neighbors/devices/device
-#Required for gNMI
-sample-interval = 10
-#Required
-address = 10.8.99.5
-#Required
-port = 57400
-#Requried 
-username = root
-#Required
-password = lablab 
-#Optional
-pem-file = Test.pem 
-batch-size = 10
-#sample, on-change required for gNMI
-sub-mode = sample 
-#stream, poll, once required for gNMI
-stream-mode = stream
-
-[dial-out]
-io = input
-#Required
-dial = out
-#Required
-address = 0.0.0.0 
-#Required
-port = 5432
-#Number greater than 0
-batch-size = 25
-
-#Only supports Elasticsearch as of now
-[elasticsearch-server-1] 
+[Output]
 io = output
-#Required
-address = 2.2.2.1
-#Required
-port = 9200 
+#required, can either be elasticsearch or influxdb
+type = influxdb
+address = 12.12.12.53
+port = 8086
+username = admin
+password = password
+database = db-test
 
 ```
-
+For each input section of the config file a separate process is spawned and a gRPC channel is created.
 
