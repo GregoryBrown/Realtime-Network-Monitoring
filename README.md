@@ -15,7 +15,9 @@ The goal of the application is to be a unified collection system of all the diff
 2. Source your virtual environment if it isn't already
 3. python rtnm.py -c <config-file.ini> -b <batch size> -r <Retry if router is down or goes down>
  
-  usage: rtnm.py [-h] -c CONFIG -b BATCH_SIZE [-w WORKER_POOL_SIZE] [-v] [-r]
+```
+ (venv) ott-003:~/Realtime-Network-Monitoring/rtnm > python rtnm.py -h
+usage: rtnm.py [-h] -c CONFIG -b BATCH_SIZE [-w WORKER_POOL_SIZE] [-v] [-r]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -27,6 +29,7 @@ optional arguments:
                         Number of workers in the worker pool used for uploading
   -v, --verbose         Enable debugging
   -r, --retry           Enable retrying
+ ```
 
   
 # Configuration File Sample 
