@@ -8,6 +8,8 @@ from typing import Dict, Any, List
 from parsers.Parsers import ParsedResponse
 from datetime import datetime
 from utils.utils import yang_path_to_es_index
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 class Uploader:
@@ -115,23 +117,19 @@ class InfluxdbUploader(Uploader):
             base_64_auth: bytes = base64.b64encode(base_64_auth.encode())
             base_64_auth: str = base_64_auth.decode()
             self.headers = {
-                'Content-Encoding': 'gzip',
                 'Content-Type': 'text/plain',
                 'Authorization': f'Basic {base_64_auth}'
             }
         else:
             self.headers = {
-                'Content-Encoding': 'gzip',
                 'Content-Type': 'text/plain',
             }
 
     def post_data(self, data: List[str]):
-        # self.log.debug(f"DATA: {data}")
         post_str: str = "\n".join(data)
-        data_to_post: bytes = gzip.compress(post_str.encode("utf-8"))
         start = datetime.now()
         try:
-            post_response = request("POST", self.url, headers=self.headers, data=data_to_post, timeout=120)
+            post_response = request("POST", self.url, headers=self.headers, data=post_str, timeout=120)
             self.log.debug(post_response)
             if post_response.status_code not in [200, 201, 204]:
                 self.log.error(post_response)
@@ -181,3 +179,76 @@ class InfluxdbUploader(Uploader):
             timestamp_inc_counter += 1
         self.log.debug(f"Influxdb length: {len(influxdb_lines)}")
         self.post_data(influxdb_lines)
+
+
+
+
+class Influxdb2Uploader(Uploader):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.log.debug("Created Influxdb2Uploader")
+        self.token: str = kwargs["token"]
+        self.org: str = kwargs["org"]
+        self.bucket: str = kwargs["bucket"]
+        self.url = f"{self.url}/api/v2/write?org={self.org}&bucket={self.bucket}&precision=ns"
+        self.headers = {
+            'Authorization': f'Token {self.token}',
+            'Content-Type': 'text/plain'
+        }
+
+    def post_data(self, data: List[str]):
+        post_str: str = "\n".join(data)
+        #self.log.info(post_str)
+        start = datetime.now()
+        try:
+            post_response = request("POST", self.url, headers=self.headers, data=post_str, timeout=120)
+            self.log.debug(post_response)
+            if post_response.status_code not in [200, 201, 204]:
+                self.log.error(post_response)
+                self.log.error(post_response.raw)
+                self.log.error(post_response.json())
+        except Exception as error:
+            self.log.error(error)
+        end = datetime.now()
+        total_time = end - start
+        self.log.info(f"Total upload time took {total_time} for Influxdb")
+
+    def upload(self, data: List[ParsedResponse]):
+        influxdb_lines: List[str] = []
+        timestamp_inc_counter = 0
+        for entry in data:
+            tag_line: Dict[str, Any] = {}
+            for tag_key, tag_value in entry.data["keys"].items():
+                if isinstance(tag_value, str):
+                    tag_value = " ".join(tag_value.split()).strip().replace(
+                        ",", "\,").replace("=", "\=").replace('"', '')
+                    if tag_value == "":
+                        tag_line[tag_key] = f'"{tag_value}"'  # =""
+                    else:
+                        tag_line[tag_key] = tag_value
+                else:
+                    tag_line[tag_key] = tag_value
+            tag_line["encoding"] = entry.encoding
+            tag_line["hostname"] = entry.hostname
+            tag_line["ip"] = entry.ip_addr
+            tag_line["version"] = entry.version
+            field_line: List[str] = []
+            for field_key, field_value in entry.data["content"].items():
+                if isinstance(field_value, str):
+                    field_value: str = " ".join(field_value.split()).strip().replace(" ", "\ ").replace(",", "\,").replace("=", "\=").replace('"', '')
+                    if field_key not in tag_line:
+                        if not field_value:
+                            tag_line[field_key] = f'"{field_value}"'
+                        else:
+                            tag_line[field_key] = field_value
+                    field_line.append(f'{field_key}="{field_value}"')
+                else:
+                    field_line.append(f"{field_key}={field_value}")
+            field_line: str = ",".join(field_line)
+            tag_line: str = ",".join([f"{key}={value}" for key, value in tag_line.items()])
+            timestamp = entry.timestamp + timestamp_inc_counter
+            influxdb_lines.append(f"{entry.yang_path},{tag_line} {field_line} {timestamp}")
+            timestamp_inc_counter += 1
+        self.log.debug(f"Influxdb length: {len(influxdb_lines)}")
+        self.post_data(influxdb_lines)
+

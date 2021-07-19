@@ -66,7 +66,7 @@ class DialInClient(Process):
         self._timeout: float = float(timeout)
         self.gnmi_stub: gNMIStub = None
         self.cisco_ems_stub: gRPCConfigOperStub = None
-        self.log.debug("Finished initialzing %s", self.name)
+        self.log.info(f"Starting dial in client [%s]", self.name)
         self.min_backoff_time: int = 1
         self.max_backoff_time: int = 128
 

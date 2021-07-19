@@ -48,42 +48,46 @@ def generate_clients(in_file: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 input_clients[section]["io"] = "in"
                 input_clients[section]["address"] = config[section]["address"]
                 input_clients[section]["port"] = config[section]["port"]
-                input_clients[section]["username"] = config[section]["username"]
-                input_clients[section]["password"] = config[section]["password"]
-                input_clients[section]["compression"] = bool(strtobool(config[section]["compression"]))
-                if config[section]["format"] == "gnmi":
-                    input_clients[section]["format"] = "gnmi"
-                    input_clients[section]["sensors"] = [
-                        x.strip() for x in config[section]["sensors"].split(",")
-                    ]
-                    input_clients[section]["sample-interval"] = int(config[section]["sample-interval"]) * 1000000000
-                    input_clients[section]["subscription-mode"] = SubscriptionMode.Value(
-                        config[section]["subscription-mode"])
-                    input_clients[section]["encoding"] = Encoding.Value(config[section]["encoding"])
-                    input_clients[section]["stream-mode"] = SubscriptionList.Mode.Value(
-                        config[section]["stream-mode"])
-                else:
-                    input_clients[section]["format"] = "cisco-ems"
-                    # Valid encode values- gpb:2, self-describing-gpb:3, json:4
-                    encodings: Dict[str, int] = {"gpb": 2, "self-describing-gpb": 3, "json": 4}
-                    input_clients[section]["encoding"] = encodings[config[section]["encoding"]]
-                    input_clients[section]["subscriptions"] = [
-                        x.strip() for x in config[section]["subscriptions"].split(",")
-                    ]
-                if "pem-file" in config[section]:
-                    input_clients[section]["pem-file"] = config[section]["pem-file"]
+                input_clients[section]["dial"] = "out"
+                if config[section]["dial"] == "in":
+                    input_clients[section]["dial"] = "in"
+                    input_clients[section]["username"] = config[section]["username"]
+                    input_clients[section]["password"] = config[section]["password"]
+                    input_clients[section]["compression"] = bool(strtobool(config[section]["compression"]))
+                    if config[section]["format"] == "gnmi":
+                        input_clients[section]["format"] = "gnmi"
+                        input_clients[section]["sensors"] = [
+                            x.strip() for x in config[section]["sensors"].split(",")
+                        ]
+                        input_clients[section]["sample-interval"] = int(config[section]["sample-interval"]) * 1000000000
+                        input_clients[section]["subscription-mode"] = SubscriptionMode.Value(
+                            config[section]["subscription-mode"])
+                        input_clients[section]["encoding"] = Encoding.Value(config[section]["encoding"])
+                        input_clients[section]["stream-mode"] = SubscriptionList.Mode.Value(
+                            config[section]["stream-mode"])
+                    else:
+                        input_clients[section]["format"] = "cisco-ems"
+                        # Valid encode values- gpb:2, self-describing-gpb:3, json:4
+                        encodings: Dict[str, int] = {"gpb": 2, "self-describing-gpb": 3, "json": 4}
+                        input_clients[section]["encoding"] = encodings[config[section]["encoding"]]
+                        input_clients[section]["subscriptions"] = [
+                            x.strip() for x in config[section]["subscriptions"].split(",")
+                        ]
+                    if "pem-file" in config[section]:
+                        input_clients[section]["pem-file"] = config[section]["pem-file"]
             else:
                 output_clients[section] = {}
+                output_clients[section]["type"] = config[section]["type"]
+                if output_clients[section]["type"] == "influxdb2":
+                    output_clients[section]["token"] = config[section]["token"]
+                    output_clients[section]["org"] = config[section]["org"]
+                    output_clients[section]["bucket"] = config[section]["bucket"]
+                elif output_clients[section]["type"] == "influxdb":
+                    output_clients[section]["database"] = config[section]["database"]
+                    output_clients[section]["username"] = config[section]["username"]
+                    output_clients[section]["password"] = config[section]["password"]
                 output_clients[section]["address"] = config[section]["address"]
                 output_clients[section]["port"] = config[section]["port"]
-                output_clients[section]["type"] = config[section]["type"]
-                if "database" in config[section]:
-                    output_clients[section]["database"] = config[section]["database"]
-                if "username" in config[section]:
-                    output_clients[section]["username"] = config[section]["username"]
-                if "password" in config[section]:
-                    output_clients[section]["password"] = config[section]["password"]
-
         return input_clients, output_clients
 
 

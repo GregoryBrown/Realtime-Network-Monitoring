@@ -13,9 +13,10 @@ from logging import getLogger, Logger
 from datetime import datetime
 from parsers.Parsers import RTNMParser, ParsedResponse
 from loggers.loggers import init_logs
-from databases.databases import InfluxdbUploader, ElasticSearchUploader
+from databases.databases import InfluxdbUploader, ElasticSearchUploader, Influxdb2Uploader
 from errors.errors import ConfigError
 from connectors.DialInClients import DialInClient, TLSDialInClient
+from connectors.DialOutClients import DialOutClient
 from utils.utils import generate_clients
 
 
@@ -38,19 +39,22 @@ def process_and_upload_data(*args):
         parser = RTNMParser(batch_list, log_name)
         start = datetime.now()
         parsed_responses: List[ParsedResponse] = parser.decode_and_parse_raw_responses()
+        print(parsed_responses[1])
         for tsdb_endpoint in tsdb_args.keys():
             tsdb_args[tsdb_endpoint]["log_name"] = log_name
             if tsdb_args[tsdb_endpoint]["type"] == "elasticsearch":
                 uploader = ElasticSearchUploader(**tsdb_args[tsdb_endpoint])
-            else:
+            elif tsdb_args[tsdb_endpoint]["type"] == "influxdb":
                 uploader = InfluxdbUploader(**tsdb_args[tsdb_endpoint])
+            else:
+                uploader = Influxdb2Uploader(**tsdb_args[tsdb_endpoint])
             uploader.upload(parsed_responses)
         end = datetime.now()
         total_time = end - start
         processor_log.info(f"Total Batch time took {total_time}")
     except Exception as error:
         processor_log.error(error)
-        processor_log.error(args)
+        processor_log.debug(args)
 
 
 def main():
@@ -84,34 +88,34 @@ def main():
     log_queue: Queue = Queue()
     log_name: str = f"rtnm-{args.config.strip('ini').strip('.')}"
     rtnm_log = init_logs(log_name, path, log_queue, args.debug)
-    print(outputs)
     try:
         client_conns: List[Union[DialInClient, TLSDialInClient]] = []
         data_queue: Queue = Queue()
         rtnm_log.logger.info("Starting inputs and outputs")
         for client in inputs:
-            inputs[client]["debug"] = args.debug
-            inputs[client]["retry"] = args.retry
-            if "pem-file" in inputs[client]:
-                with open(inputs[client]["pem-file"], "rb") as file_desc:
-                    pem = file_desc.read()
-                rtnm_log.logger.info(f"Creating TLS Connector for {client}")
-                client_conns.append(TLSDialInClient(pem, data_queue,
-                                                    log_name, **inputs[client],
-                                                    name=client))
+            if inputs[client]["dial"] == "in":
+                inputs[client]["debug"] = args.debug
+                inputs[client]["retry"] = args.retry
+                if "pem-file" in inputs[client]:
+                    with open(inputs[client]["pem-file"], "rb") as file_desc:
+                        pem = file_desc.read()
+                    rtnm_log.logger.info(f"Creating TLS Connector for {client}")
+                    client_conns.append(TLSDialInClient(pem, data_queue,
+                                                        log_name, **inputs[client],
+                                                        name=client))
+                else:
+                    rtnm_log.logger.info(f"Creating Connector for {client}")
+                    client_conns.append(DialInClient(data_queue,
+                                                     log_name, **inputs[client], name=client))
             else:
-                rtnm_log.logger.info(f"Creating Connector for {client}")
-                client_conns.append(DialInClient(data_queue,
-                                                 log_name, **inputs[client], name=client))
+                client_conns.append(DialOutClient(data_queue, log_name, inputs[client], client))
         for client in client_conns:
-            rtnm_log.logger.info(f"Starting dial in client [{client.name}]")
             client.start()
         batch_list: List[Tuple[str, str, Optional[str], Optional[str], str]] = []
         with Pool(processes=args.worker_pool_size) as worker_pool:
             while all([client.is_alive() for client in client_conns]):
                 try:
                     data: Tuple[str, str, Optional[str], Optional[str], str] = data_queue.get(timeout=10)
-
                     if data is not None:
                         batch_list.append(data)
                         if len(batch_list) >= args.batch_size:
@@ -131,10 +135,7 @@ def main():
                     rtnm_log.logger.error("Error during worker pool, going to cleanup")
                     for client in client_conns:
                         client.terminate()
-
     except Exception as error:
-        #import traceback
-        # rtnm_log.logger.error(traceback.print_exc())
         rtnm_log.logger.error(error)
     except KeyboardInterrupt as error:
         rtnm_log.logger.error("Shutting down due to user ctrl-c")
