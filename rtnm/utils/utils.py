@@ -46,7 +46,10 @@ def generate_clients(in_file: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             if config[section]["io"] == "input":
                 input_clients[section] = {}
                 input_clients[section]["io"] = "in"
-                input_clients[section]["address"] = config[section]["address"]
+                if ":" in config[section]["address"]:
+                    input_clients[section]["address"] = f'[{config[section]["address"]}]'
+                else:
+                    input_clients[section]["address"] = config[section]["address"]
                 input_clients[section]["port"] = config[section]["port"]
                 input_clients[section]["dial"] = "out"
                 if config[section]["dial"] == "in":
@@ -77,17 +80,17 @@ def generate_clients(in_file: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                         input_clients[section]["pem-file"] = config[section]["pem-file"]
             else:
                 output_clients[section] = {}
+                output_clients[section]["address"] = config[section]["address"]
+                output_clients[section]["port"] = config[section]["port"]
                 output_clients[section]["type"] = config[section]["type"]
-                if output_clients[section]["type"] == "influxdb2":
-                    output_clients[section]["token"] = config[section]["token"]
-                    output_clients[section]["org"] = config[section]["org"]
-                    output_clients[section]["bucket"] = config[section]["bucket"]
-                elif output_clients[section]["type"] == "influxdb":
+                if output_clients[section]["type"] == "influxdb":
                     output_clients[section]["database"] = config[section]["database"]
                     output_clients[section]["username"] = config[section]["username"]
                     output_clients[section]["password"] = config[section]["password"]
-                output_clients[section]["address"] = config[section]["address"]
-                output_clients[section]["port"] = config[section]["port"]
+                elif output_clients[section]["type"] == "influxdbv2":
+                    output_clients[section]["token"] = config[section]["token"]
+                    output_clients[section]["org"] = config[section]["org"]
+                    output_clients[section]["bucket"] = config[section]["bucket"]
         return input_clients, output_clients
 
 

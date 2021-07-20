@@ -39,7 +39,6 @@ def process_and_upload_data(*args):
         parser = RTNMParser(batch_list, log_name)
         start = datetime.now()
         parsed_responses: List[ParsedResponse] = parser.decode_and_parse_raw_responses()
-        print(parsed_responses[1])
         for tsdb_endpoint in tsdb_args.keys():
             tsdb_args[tsdb_endpoint]["log_name"] = log_name
             if tsdb_args[tsdb_endpoint]["type"] == "elasticsearch":
