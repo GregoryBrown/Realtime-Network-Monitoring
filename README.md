@@ -73,10 +73,17 @@ username = root
 password = lablab
 pem-file =  Router.pem
 compression = True
+ 
+#Dialout server that will listen on an address and port
+[Dial-out]
+io = input
+dial = out
+address = 0.0.0.0
+port = 7777
 
 [Output]
 io = output
-#required, can either be elasticsearch or influxdb
+#required, can either be elasticsearch or influxdb, or influxdbv2. Must specify one of these
 type = influxdb
 address = 12.12.12.53
 port = 8086
