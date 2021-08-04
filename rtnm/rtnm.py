@@ -85,7 +85,7 @@ def main():
 
     path: Path = Path().absolute() / "logs"
     log_queue: Queue = Queue()
-    log_name: str = f"rtnm-{args.config.strip('ini').strip('.')}"
+    log_name: str = f"rtnm-{args.config.strip('ini').strip('.').split('/')[-1]}"
     rtnm_log = init_logs(log_name, path, log_queue, args.debug)
     try:
         client_conns: List[Union[DialInClient, TLSDialInClient]] = []

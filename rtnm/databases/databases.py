@@ -8,9 +8,6 @@ from typing import Dict, Any, List
 from parsers.Parsers import ParsedResponse
 from datetime import datetime
 from utils.utils import yang_path_to_es_index
-from influxdb_client import InfluxDBClient, Point, WritePrecision
-from influxdb_client.client.write_api import SYNCHRONOUS
-
 
 class Uploader:
 

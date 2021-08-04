@@ -99,7 +99,7 @@ class RTNMParser:
             tele.ParseFromString(raw_message[1])
             # self.log.debug(tele)
             return tele
-
+        
     def parse_gnmi(self, response: SubscribeResponse, hostname: str, version: str, ip: str) -> List[ParsedResponse]:
         self.log.debug("In parse_gnmi")
         keys, start_yang_path = self.process_header(response.update)
