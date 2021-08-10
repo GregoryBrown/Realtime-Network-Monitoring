@@ -87,13 +87,15 @@ class DialInClient(Process):
             encoding=Encoding.Value("JSON_IETF"),
         )
         response: GetResponse = stub.Get(get_message, metadata=self._metadata, timeout=self._timeout)
-
         def _parse_version(version: GetResponse) -> str:
             rc = ""
             for notification in version.notification:
                 for update in notification.update:
-                    rc = json.loads(update.val.json_ietf_val)
-                    return rc["label"]
+                    if update.val.json_ietf_val:
+                        rc = json.loads(update.val.json_ietf_val)
+                        return rc["label"]
+                    else:
+                        return "Error"
         return _parse_version(response)
 
     def _get_hostname(self) -> str:
@@ -104,13 +106,12 @@ class DialInClient(Process):
             encoding=Encoding.Value("JSON_IETF"),
         )
         response: GetResponse = stub.Get(get_message, metadata=self._metadata, timeout=self._timeout)
-
         def _parse_hostname(hostname_response: GetResponse) -> str:
             for notification in hostname_response.notification:
                 for update in notification.update:
                     hostname: str = update.val.json_ietf_val
                     if not hostname:
-                        return ""
+                        return "Error"
                     return json.loads(hostname)["host-name"]
 
         return _parse_hostname(response)

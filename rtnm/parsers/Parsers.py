@@ -171,6 +171,7 @@ class RTNMParser:
         parsed_list: List[ParsedResponse] = []
         node_str: str = response.node_id_str
         start_yang_path: str = response.encoding_path
+        keys: Dict[str, Any] = {}
         for gpbkv in response.data_gpbkv:
             timestamp: int = gpbkv.timestamp
             for telemetry_field in gpbkv.fields:
