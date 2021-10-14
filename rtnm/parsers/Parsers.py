@@ -88,16 +88,17 @@ class RTNMParser:
     def _decode(self, raw_message: Tuple[str, str, Optional[str], Optional[str]]) -> Union[SubscribeResponse, Telemetry]:
         if raw_message[0] == "gnmi":
             self.log.debug("In decode gnmi")
-            # self.log.debug(raw_message[1])
+            self.log.debug(raw_message[1])
             sub = SubscribeResponse()
             sub.ParseFromString(raw_message[1])
+            self.log.debug(sub)
             return sub
         else:
             self.log.debug("In decode ems")
-            # self.log.debug(raw_message[1])
+            self.log.debug(raw_message[1])
             tele = Telemetry()
             tele.ParseFromString(raw_message[1])
-            # self.log.debug(tele)
+            self.log.debug(tele)
             return tele
         
     def parse_gnmi(self, response: SubscribeResponse, hostname: str, version: str, ip: str) -> List[ParsedResponse]:
@@ -197,7 +198,6 @@ class RTNMParser:
             for response in self.raw_responses:
                 gpb_encoding = response[0]
                 decoded_response = self._decode(response)
-                # self.log.debug(decoded_response)
                 if gpb_encoding == "gnmi":
                     parsed_list.extend(self.parse_gnmi(decoded_response,
                                                        response[2], response[3], response[4]))

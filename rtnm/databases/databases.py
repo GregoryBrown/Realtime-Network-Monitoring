@@ -195,7 +195,7 @@ class Influxdb2Uploader(Uploader):
 
     def post_data(self, data: List[str]):
         post_str: str = "\n".join(data)
-        #self.log.info(post_str)
+        self.log.debug(post_str)
         start = datetime.now()
         try:
             post_response = request("POST", self.url, headers=self.headers, data=post_str, timeout=120)
@@ -217,7 +217,7 @@ class Influxdb2Uploader(Uploader):
             tag_line: Dict[str, Any] = {}
             for tag_key, tag_value in entry.data["keys"].items():
                 if isinstance(tag_value, str):
-                    tag_value = " ".join(tag_value.split()).strip().replace(
+                    tag_value = "-".join(tag_value.split()).strip().replace(
                         ",", "\,").replace("=", "\=").replace('"', '')
                     if tag_value == "":
                         tag_line[tag_key] = f'"{tag_value}"'  # =""
