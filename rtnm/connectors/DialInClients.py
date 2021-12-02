@@ -41,7 +41,7 @@ class DialInClient(Process):
     def __init__(self, data_queue: Queue, log_name: str, options: List[Tuple[str, str]] = None, timeout: int = 100000000, *args, **kwargs):
         super().__init__(name=kwargs["name"])
         if options is None:
-            opts: List[Tuple[str, str]] = [("grpc.ssl_target_name_override", "ems.cisco.com"), ("grpc.keepalive_time_ms", 60000), ("grpc.keepalive_timeout_ms", 10000)]
+            opts: List[Tuple[str, str]] = [("grpc.ssl_target_name_override", "ems.cisco.com"), ("grpc.keepalive_time_ms", 60000), ("grpc.keepalive_timeout_ms", 50000)]
         self.options: List[Tuple[str, str]] = opts
         self._host: str = kwargs["address"]
         self._port: int = kwargs["port"]
@@ -49,13 +49,14 @@ class DialInClient(Process):
         self.log: Logger = getLogger(log_name)
         self._metadata: List[Tuple[str, str]] = [
             ("username", kwargs["username"]),
-            ("password", kwargs["password"]),
+            ("password", kwargs["password"])
         ]
         self._format: str = kwargs["format"]
         self.encoding: str = kwargs["encoding"]
         self.debug: bool = kwargs["debug"]
         self.retry: bool = kwargs["retry"]
         self.compression: bool = kwargs["compression"]
+        self.upload: bool = kwargs["upload"]
         if self._format == "gnmi":
             self.sub_mode = kwargs["subscription-mode"]
             self.sensors: List[str] = kwargs["sensors"]
@@ -153,7 +154,8 @@ class DialInClient(Process):
                     elif response.sync_response:
                         self.log.debug("Got all values atleast once")
                     else:
-                        self.queue.put_nowait(("gnmi", response.SerializeToString(), hostname, version, self._host))
+                        if self.upload:
+                            self.queue.put_nowait(("gnmi", response.SerializeToString(), hostname, version, self._host))
             except grpc.RpcError as error:
                 self.log.error(error)
             except Exception as error:
@@ -180,7 +182,8 @@ class DialInClient(Process):
                     if segment.errors:
                         raise grpc.RpcError(segment.errors)
                     else:
-                        self.queue.put_nowait(("ems", segment.data, None, version, self._host))
+                        if self.upload:
+                            self.queue.put_nowait(("ems", segment.data, None, version, self._host))
             except grpc.RpcError as error:
                 self.log.error(error)
                 retry = self.retry

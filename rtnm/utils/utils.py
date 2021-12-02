@@ -57,6 +57,7 @@ def generate_clients(in_file: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     input_clients[section]["username"] = config[section]["username"]
                     input_clients[section]["password"] = config[section]["password"]
                     input_clients[section]["compression"] = bool(strtobool(config[section]["compression"]))
+                    input_clients[section]["upload"] = bool(strtobool(config[section]["upload"]))
                     if config[section]["format"] == "gnmi":
                         input_clients[section]["format"] = "gnmi"
                         input_clients[section]["sensors"] = [
