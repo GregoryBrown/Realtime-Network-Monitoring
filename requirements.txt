@@ -6,7 +6,7 @@ grpcio==1.41.1
 grpcio-tools==1.41.1
 idna==3.3
 pkg_resources==0.0.0
-protobuf==3.19.1
+protobuf==3.19.5
 requests==2.26.0
 six==1.16.0
 tornado==6.1
